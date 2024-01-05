@@ -3,6 +3,23 @@ from gql.transport.requests import RequestsHTTPTransport
 import pandas as pd
 from datetime import datetime, timedelta
 import numpy as np
+from scipy.stats import norm
+
+def generate_bounds(start_volatility, end_volatility, start_price, expected_end=0.05269, confidence=0.95):
+    # Calculate the lower and upper bounds
+    z_stat = norm.ppf(1 - (1 - confidence) / 2)
+    #print(z_stat)
+    if start_price > expected_end:
+        lower_bound = expected_end - end_volatility * z_stat
+        upper_bound = start_price + start_volatility * z_stat
+        
+    else:
+        lower_bound = start_price - start_volatility * z_stat
+        upper_bound = expected_end + end_volatility * z_stat
+    return lower_bound, upper_bound
+
+
+
 
 def convert_to_unix(date_str):
     # Convert the date string to a datetime object
@@ -201,7 +218,7 @@ def chart1(dpd,base,myliquidity):
     print("Base position returned", final1['feeunb'].sum()/final1['amountV'].iloc[0]*100,"in ",len(final1.index)," days, for an APR of ",final1['feeunb'].sum()/final1['amountV'].iloc[0]*365/len(final1.index)*100)
     
     print ("Fees in token 1 and token 2",dpd['myfee0'].sum(),dpd['myfee1'].sum() )
-    print("TotalFees in USD", final1['feeusd'].sum())
+    print("Total Fees in USD", final1['feeusd'].sum())
     print ('Your liquidity was active for:',final1['ActiveLiq'].mean())
     
     if base == 0:
@@ -241,8 +258,8 @@ def chart1(dpd,base,myliquidity):
     ch3=final2[['ILnorm','PNLnorm','feecumsumnorm']]
 
     final2.to_csv("chart2.csv",sep = ";")
-    print(ch2)
-    print(ch3)
+    #print(ch2)
+    #print(ch3)
 
     #final3=data
     final3=pd.DataFrame()
@@ -265,8 +282,8 @@ def chart1(dpd,base,myliquidity):
     ch3=final3[['ILnorm','PNLnorm','feecumsumnorm']]
 
 
-    print(ch2)
-    print(ch3)
+    #print(ch2)
+    #print(ch3)
     
     return final1,final2,final3
 
