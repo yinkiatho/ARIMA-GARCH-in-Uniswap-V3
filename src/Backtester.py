@@ -3,11 +3,10 @@ import matplotlib.pyplot as plt
 import matplotlib.cbook as cbook
 import matplotlib.dates as mdates
 import numpy as np
-import Backtest.liquidity as liquidity
-import Backtest.GraphBacktest as GraphBacktest
-import Backtest.charts as charts
 from datetime import datetime, timedelta
-
+import sys
+from utils import *
+import os
 
 class Backtester():
     
@@ -17,41 +16,15 @@ class Backtester():
         self.Address = Address
         self.network = network
         
-    def convert_to_unix(self, date_str):
-        # Convert the date string to a datetime object
-        date_obj = datetime.strptime(date_str, '%Y-%m-%d')
-
-        # Set the time to 8:00 AM
-        date_obj = date_obj.replace(hour=8, minute=0, second=0, microsecond=0)
-
-        # Calculate the Unix timestamp
-        unix_timestamp = int(date_obj.timestamp())
-
-        return unix_timestamp
     
-    def convert_unix_to_datetime(self, unix_timestamp):
-        try:
-            # Convert Unix timestamp to datetime
-            datetime_obj = datetime.utcfromtimestamp(unix_timestamp)
-            return datetime_obj
-        except Exception as e:
-            print(f"Error converting Unix timestamp to datetime: {e}")
-            return None
+    def backtest(self, mini, maxi, startdate, enddate=None, base=0):
         
-    
-    def backtest(self, mini, maxi, startdate, enddate=None, target=None, base=0):
-        
-        startfrom = self.convert_to_unix(startdate)
-        if enddate != None:
-            enddate = self.convert_to_unix(enddate)
-        
-        
-        dpd = GraphBacktest.graphTwo(self.network, self.Address, startfrom, enddate)
-        dpd['date']=dpd['periodStartUnix'].apply(self.convert_unix_to_datetime)
+        startfrom, enddate = convert_to_unix(startdate), convert_to_unix(enddate)
+        dpd = graphTwo(self.network, self.Address, startfrom, enddate)
+        dpd['date']=dpd['periodStartUnix'].apply(convert_unix_to_datetime)
         #dpd = dpd.sort_values(by=['periodStartUnix'], ascending=True).reset_index(drop=True)    
         
-        if target == None:
-            target = self.dpd['close'].iloc[-1]
+        #print(dpd)
             
         decimal0=dpd.iloc[0]['pool.token0.decimals']
         decimal1=dpd.iloc[0]['pool.token1.decimals']
@@ -59,9 +32,8 @@ class Backtester():
         dpd['fg0']=((dpd['feeGrowthGlobal0X128'])/(2**128))/(10**decimal0)
         dpd['fg1']=((dpd['feeGrowthGlobal1X128'])/(2**128))/(10**decimal1)
 
-
         target = dpd['close'].iloc[-1] 
-        base = 1
+        base = 0
 
         #Calculate F0G and F1G (fee earned by an unbounded unit of liquidity in one period)
         dpd['fg0shift']=dpd['fg0'].shift(-1)
@@ -101,7 +73,7 @@ class Backtester():
 
         #print(dpd['price0'].iloc[-1],mini,maxi)
         #print((dpd['price0'].iloc[-1],mini,maxi,amount0,amount1,decimal0,decimal1))
-        myliquidity = liquidity.get_liquidity(dpd['price0'].iloc[-1],mini,maxi,amount0,amount1,decimal0,decimal1)
+        myliquidity = get_liquidity(dpd['price0'].iloc[-1],mini,maxi,amount0,amount1,decimal0,decimal1)
 
         print("OK myliquidity",myliquidity)
 
@@ -121,13 +93,13 @@ class Backtester():
                 else:
                     dpd.iloc[i,dpd.columns.get_loc('ActiveLiq')] = 0
        
-                amounts= liquidity.get_amounts(dpd['price0'].iloc[i],mini,maxi,myliquidity,decimal0,decimal1)
+                amounts= get_amounts(dpd['price0'].iloc[i],mini,maxi,myliquidity,decimal0,decimal1)
                 dpd.iloc[i,dpd.columns.get_loc('amount0')] = amounts[1]
                 dpd.iloc[i,dpd.columns.get_loc('amount1')]  = amounts[0]
         
-                amountsunb= liquidity.get_amounts((dpd['price0'].iloc[i]),1.0001**(-887220),1.0001**887220,1,decimal0,decimal1)
+                amountsunb= get_amounts((dpd['price0'].iloc[i]),1.0001**(-887220),1.0001**887220,1,decimal0,decimal1)
                 dpd.iloc[i,dpd.columns.get_loc('amount0unb')] = amountsunb[1]
-                pd.iloc[i,dpd.columns.get_loc('amount1unb')] = amountsunb[0]
+                dpd.iloc[i,dpd.columns.get_loc('amount1unb')] = amountsunb[0]
 
 
         else:
@@ -139,11 +111,11 @@ class Backtester():
                 else:
                     dpd.iloc[i,dpd.columns.get_loc('ActiveLiq')] = 0
 
-                amounts= liquidity.get_amounts((dpd['price0'].iloc[i]*10**(decimal)),mini,maxi,myliquidity,decimal0,decimal1)
+                amounts= get_amounts((dpd['price0'].iloc[i]*10**(decimal)),mini,maxi,myliquidity,decimal0,decimal1)
                 dpd.iloc[i,dpd.columns.get_loc('amount0')] = amounts[0]
                 dpd.iloc[i,dpd.columns.get_loc('amount1')] = amounts[1]
 
-                amountsunb= liquidity.get_amounts((dpd['price0'].iloc[i]),1.0001**(-887220),1.0001**887220,1,decimal0,decimal1)
+                amountsunb= get_amounts((dpd['price0'].iloc[i]),1.0001**(-887220),1.0001**887220,1,decimal0,decimal1)
                 dpd.iloc[i,dpd.columns.get_loc('amount0unb')] = amountsunb[0]
                 dpd.iloc[i,dpd.columns.get_loc('amount1unb')] = amountsunb[1]
 
@@ -153,13 +125,18 @@ class Backtester():
         dpd['myfee1'] = dpd['fee1token'] * myliquidity * dpd['ActiveLiq'] / 100
 
         #print(dpd)
-        final1, final2, final3 = charts.chart1(dpd,base,myliquidity)
+        final1, final2, final3 = chart1(dpd,base,myliquidity)
+        
+        return final1, final2, final3
         
         
         
         
 if __name__ == "__main__":
+
     backtester = Backtester()
+    a, b,  c = backtester.backtest(0.04177481929059751, 0.07653292116574624, "2023-05-25", "2023-12-24")
+    #print(a, b, c)
     
             
         

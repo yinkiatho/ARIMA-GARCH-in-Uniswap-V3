@@ -22,13 +22,13 @@ class ARIMA_GARCH():
         self.arima_order = arima_order
         self.garch_order = garch_order
         
-        if self.testset is None:
+        if testset is None:
             self.testset = pd.read_csv('data/test_returns.csv', index_col = 0)
         else:
             self.testset = testset
             
             
-        if self.trainset is None:
+        if trainset is None:
             self.trainset = pd.read_csv('data/df_returns.csv', index_col = 0)
         else:
             self.trainset = trainset

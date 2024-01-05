@@ -26,8 +26,19 @@ class Simulator():
         self.network = network
         self.backtester = Backtester(Address, network)
         self.arima_garch = ARIMA_GARCH((1,1,1), (1,1))
+        self.model_predictions = pd.read_csv('data/pools_daily_weth_btc_arima_garch.csv', delimiter=';', index_col=0)
         
     
-    def simulate(windows=1, risk_params=0.95):
+    def simulate(self, windows=1, risk_params=0.95):
+        
+        print(self.model_predictions)
+        
+        
         
         return
+    
+    
+if __name__ == '__main__':
+    
+    sim = Simulator()
+    sim.simulate()
