@@ -673,6 +673,8 @@ def chart1(dpd):
     apr = final1['feeV'].sum()/final1['amountV'].iloc[0]*365/len(final1.index)*100  
     apr_base = final1['feeunb'].sum()/final1['amountV'].iloc[0]*365/len(final1.index)*100
     fees_usd = final1['feeUSD'].sum()
+    final_net_liquidity = final1['amountV'].iloc[-1]
+    active_liquidity = final1['activeLiquidity'].mean()
 
     #print('------------------------------------------------------------------')
     print("Simulated Position returned", final1['feeV'].sum()/final1['amountV'].iloc[0]*100,"in ",len(final1.index)," days, for an APR of ",final1['feeV'].sum()/final1['amountV'].iloc[0]*365/len(final1.index)*100)
@@ -683,5 +685,5 @@ def chart1(dpd):
     print ('Your liquidity was active for:',final1['activeLiquidity'].mean())
     print('Final Net Liquidity Value of LP Investment (WBTC): ', final1['amountV'].iloc[-1])
     #print("Total fees earned based on initial deposit: ", total_fees_earned)
-    print('------------------------------------------------------------------')
-    return final1, fees_usd
+    #print('------------------------------------------------------------------')
+    return final1, [fees_usd, apr, apr_base, final_net_liquidity, active_liquidity]

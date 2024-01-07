@@ -216,8 +216,9 @@ class Backtester():
         return chart1(dpd)
     
     def get_exit_value(self, df, initial_amount0, min_range, max_range, tick_spacing=60):
+        #print(df)
         
-        initial_amount1 = initial_amount0 * (1 / df['close'].iloc[-1])
+        initial_amount1 = initial_amount0 * (1/ df['close'].iloc[-1])
         print(f"Initial Amounts: {initial_amount0} token0, {initial_amount1} token1")
         initial_price = df['close'].iloc[-1]
         final_price = df['close'].iloc[0]
@@ -240,16 +241,13 @@ class Backtester():
             final_amount0 = initial_amount0 * 2
             final_amount1 = 0
             
+        print(f"Final Amounts: {final_amount0} token0, {final_amount1} token1")
         
         total_exit_value = final_amount0 + final_amount1 * final_price
         
         return total_exit_value
         
-        
-        
     
-        
-        return total_exit_value
 
         
         

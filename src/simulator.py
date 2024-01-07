@@ -50,7 +50,7 @@ class Simulator():
         return test_periods
         
     
-    def simulate(self, windows=1, risk_params=0.95):
+    def simulate(self, windows=1, risk_params=0.95, initial_investment=1000000):
         
         # 1.  Based on number of windows, divide the data into windows, get start and end dates for each window as well
         test_periods = self.divide_windows(windows)
@@ -61,12 +61,19 @@ class Simulator():
             'Test Period': [],
             'Start Date': [],
             'End Date': [],
+            'Final Net Liquidity Value': [],
             'Fee Results': [],
+            'Fee USD': [],
+            'APR Strategy': [],
+            'APR Unbounded': [],
+            'Cumulative Investment USD': [],
+            'Cumulative Investment WBTC': [],
+            'Mean Percentage of Active Liquidity': [],
             'Hedging Costs': [],
             'Total Results': []
         }
         
-        curr_initial_investment = 1000000
+        curr_initial_investment = initial_investment
         for test_period in test_periods:
             # Add initial results
             results['Test Period'].append(test_period)
@@ -94,16 +101,34 @@ class Simulator():
             Address =  "0xcbcdf9626bc03e24f779434178a73a0b4bad62ed"
             res1, exit_value, exit_value_usd = self.backtester.uniswap_strategy_backtest(Address, lower_bound, upper_bound, 
                                                                                          start_date, end_date, investment_amount_usd=curr_initial_investment)
-            chart1, fees_usd = self.backtester.generate_chart1(res1)
-            results['Fee Results'].append(chart1)
+            chart1, stats = self.backtester.generate_chart1(res1)
+            fees_usd, apr, apr_base, final_net_liquidity, active_liquidity = stats
             
             
             # Inititalize Hedging Costs
             
+        
+             
+            # Add results
+            results['Fee USD'].append(fees_usd)
+            results['APR Strategy'].append(apr)
+            results['APR Unbounded'].append(apr_base)
+            results['Final Net Liquidity Value'].append(final_net_liquidity)
+            results['Mean Percentage of Active Liquidity'].append(active_liquidity)
+            results['Fee Results'].append(chart1)
+            
+            
             # Add Hedging Costs
             hedgingcosts = 0
             curr_initial_investment = exit_value_usd + fees_usd - hedgingcosts
-            print(f'Current Value USD at end of period {start_date} to {end_date}: {curr_initial_investment}')
+            
+            results['Hedging Costs'].append(hedgingcosts)
+            results['Cumulative Investment USD'].append(curr_initial_investment)
+            results['Cumulative Investment WBTC'].append(exit_value)
+            
+            print(f"Exit WBTC: {exit_value}, Exit USD: {exit_value_usd}, Fees: {fees_usd}, Hedging Costs: {hedgingcosts}")
+            print(f'Current Value USD at end of period {start_date} to {end_date}: {curr_initial_investment} USD')
+            print("-------------------------------------------------------------------")
                     
             # Exit LP
         
@@ -118,4 +143,4 @@ class Simulator():
 if __name__ == '__main__':
     
     sim = Simulator()
-    sim.simulate(windows=1, risk_params=0.99)
+    sim.simulate(windows=10, risk_params=0.90)
