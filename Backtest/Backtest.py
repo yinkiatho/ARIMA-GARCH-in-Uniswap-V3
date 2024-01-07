@@ -33,13 +33,13 @@ def convert_unix_to_datetime(unix_timestamp):
 
 # network 1 ETH, 2 ARB, 3 OPT
 
-
+# Token 0: WBTC, Token 1: WETH
 Adress= "0xcbcdf9626bc03e24f779434178a73a0b4bad62ed" # WBTC ETH
 #Adress= "0x68f180fcce6836688e9084f035309e29bf0a2095" #  WBTC DAI
 dpd= GraphBacktest.graphTwo(1,Adress,convert_to_unix("2023-05-25"),convert_to_unix("2023-12-24"))
 dpd['date']=dpd['periodStartUnix'].apply(convert_unix_to_datetime)
 #dpd = dpd.sort_values(by=['periodStartUnix'], ascending=True).reset_index(drop=True)
-print(dpd)
+#print(dpd)
        
 decimal0=dpd.iloc[0]['pool.token0.decimals']
 decimal1=dpd.iloc[0]['pool.token1.decimals']
@@ -50,9 +50,13 @@ dpd['fg1']=((dpd['feeGrowthGlobal1X128'])/(2**128))/(10**decimal1)
 mini = 0.04177481929059751
 maxi = 0.07653292116574624
 target = dpd['close'].iloc[-1] 
-base = 0
+base = 0 # in terms of WBTC
 print(f'Mini: {mini}, Maxi: {maxi}, Target: {target}, Base: {base}')
 
+# With 1 million usd at 2229.01 usd = 1eth, deposit amounts would be 224.43 eth and 12.59 wbtc
+amount_weth = 224.43
+initial_deposit = [amount_weth * target, amount_weth]   # Amount of WETH, WBTC to deposit initially
+amount_wbtc = 12.59 * 2
 
 
 # mini = 1 / 3215    #optimism
@@ -78,7 +82,7 @@ dpd['fg0shift']=dpd['fg0'].shift(-1)
 dpd['fg1shift']=dpd['fg1'].shift(-1)
 dpd['fee0token']=dpd['fg0']-dpd['fg0shift'] 
 dpd['fee1token']=dpd['fg1']-dpd['fg1shift']
-
+print(dpd)
 # calculate my liquidity
 
 SMIN=np.sqrt(mini* 10 ** (decimal))   
@@ -96,18 +100,21 @@ else:
     
 if sqrt0>SMIN and sqrt0<SMAX:
 
-        deltaL = target / ((sqrt0 - SMIN)  + (((1 / sqrt0) - (1 / SMAX)) * (dpd['price0'].iloc[-1]* 10 ** (decimal))))
+        #deltaL = target / ((sqrt0 - SMIN)  + (((1 / sqrt0) - (1 / SMAX)) * (dpd['price0'].iloc[-1]* 10 ** (decimal))))
+        deltaL = amount_wbtc / ((sqrt0 - SMIN)  + (((1 / sqrt0) - (1 / SMAX)) * (dpd['price0'].iloc[-1]* 10 ** (decimal))))
         amount1 = deltaL * (sqrt0-SMIN)
         amount0 = deltaL * ((1/sqrt0)-(1/SMAX))* 10 ** (decimal)
         
 elif sqrt0<SMIN:
 
-        deltaL = target / (((1 / SMIN) - (1 / SMAX)) * (dpd['price0'].iloc[-1]))
+        #deltaL = target / (((1 / SMIN) - (1 / SMAX)) * (dpd['price0'].iloc[-1]))
+        deltaL = amount_wbtc / (((1 / SMIN) - (1 / SMAX)) * (dpd['price0'].iloc[-1]))
         amount1 = 0
         amount0 = deltaL * (( 1/SMIN ) - ( 1/SMAX ))
 
 else:
-        deltaL = target / (SMAX-SMIN) 
+        #deltaL = target / (SMAX-SMIN) 
+        deltaL = amount_wbtc/ (SMAX-SMIN) 
         amount1 = deltaL * (SMAX-SMIN)
         amount0 = 0
 
@@ -116,7 +123,10 @@ print("Amounts:",amount0,amount1)
 
 #print(dpd['price0'].iloc[-1],mini,maxi)
 #print((dpd['price0'].iloc[-1],mini,maxi,amount0,amount1,decimal0,decimal1))
+
 myliquidity = liquidity.get_liquidity(dpd['price0'].iloc[-1],mini,maxi,amount0,amount1,decimal0,decimal1)
+#myliquidity = liquidity.get_liquidity(dpd['price0'].iloc[-1],mini,maxi,initial_deposit[0],initial_deposit[1],decimal0,decimal1)
+unboundedliquidity = liquidity.get_liquidity(dpd['price0'].iloc[-1],1.0001**(-887220),1.0001**887220, amount0, amount1,decimal0,decimal1)
 
 print("OK myliquidity",myliquidity)
 
@@ -137,12 +147,12 @@ if base == 0:
             dpd.iloc[i,dpd.columns.get_loc('ActiveLiq')] = 0
        
         amounts= liquidity.get_amounts(dpd['price0'].iloc[i],mini,maxi,myliquidity,decimal0,decimal1)
-        dpd.iloc[i,dpd.columns.get_loc('amount0')] = amounts[1]
-        dpd.iloc[i,dpd.columns.get_loc('amount1')]  = amounts[0]
+        dpd.iloc[i,dpd.columns.get_loc('amount0')] = amounts[0]
+        dpd.iloc[i,dpd.columns.get_loc('amount1')]  = amounts[1]
         
-        amountsunb= liquidity.get_amounts((dpd['price0'].iloc[i]),1.0001**(-887220),1.0001**887220,1,decimal0,decimal1)
-        dpd.iloc[i,dpd.columns.get_loc('amount0unb')] = amountsunb[1]
-        dpd.iloc[i,dpd.columns.get_loc('amount1unb')] = amountsunb[0]
+        amountsunb= liquidity.get_amounts((dpd['price0'].iloc[i]),1.0001**(-887220),1.0001**887220, unboundedliquidity ,decimal0,decimal1)
+        dpd.iloc[i,dpd.columns.get_loc('amount0unb')] = amountsunb[0]
+        dpd.iloc[i,dpd.columns.get_loc('amount1unb')] = amountsunb[1]
 
 
 else:
@@ -166,12 +176,11 @@ else:
 
 ## Final fee calculation
 
-dpd['myfee0'] = dpd['fee0token'] * myliquidity * dpd['ActiveLiq'] / 100
-dpd['myfee1'] = dpd['fee1token'] * myliquidity * dpd['ActiveLiq'] / 100
+dpd['myfee0'] = dpd['fee0token'] * myliquidity * dpd['ActiveLiq'] / 100 
+dpd['myfee1'] = dpd['fee1token'] * myliquidity * dpd['ActiveLiq'] / 100 
 
-#print(dpd)
-
-final1, final2, final3 =charts.chart1(dpd,base,myliquidity)
+print(dpd)
+final1, final2, final3 =charts.chart1(dpd,base,myliquidity, initial_amounts=initial_deposit)
 print(final1)
 print(final2)
 print(final3)

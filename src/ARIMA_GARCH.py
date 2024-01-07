@@ -12,6 +12,7 @@ from sklearn import metrics
 import defi.defi_tools as dft
 import math 
 import random
+import os
 import statsmodels.api as sm
 from statsmodels.graphics.gofplots import qqplot
 
@@ -113,8 +114,11 @@ class ARIMA_GARCH():
             print(f"Simulation {s} complete")
 
         return simulations
-        
     
-        
+    
+if __name__ == "__main__":
+
+    model = ARIMA_GARCH((1,1,1), (1,1))
+    print(os.getcwd()) 
         
         

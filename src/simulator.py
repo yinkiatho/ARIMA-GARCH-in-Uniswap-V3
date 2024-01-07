@@ -42,7 +42,10 @@ class Simulator():
             test_periods = []
             for i in range(windows):
                 
-                test_periods.append(test_period.iloc[i*interval:(i+1)*interval])
+                if i == windows - 1:
+                    test_periods.append(test_period.iloc[i*interval:])
+                else:
+                    test_periods.append(test_period.iloc[i*interval:(i+1)*interval])
         
         return test_periods
         
@@ -62,24 +65,45 @@ class Simulator():
             'Hedging Costs': [],
             'Total Results': []
         }
+        
+        curr_initial_investment = 1000000
         for test_period in test_periods:
+            # Add initial results
+            results['Test Period'].append(test_period)
+            results['Start Date'].append(test_period.index[0])
+            results['End Date'].append(test_period.index[-1])
+
+            # Initialize Backtest
             start_date, end_date = test_period.index[0], test_period.index[-1]
+            print(f"Test Period: {start_date} to {end_date}")
             start_price = test_period['Predicted Close (WBTC)'].iloc[0]
             end_price = test_period['Predicted Close (WBTC)'].iloc[-1] # should be futures price
+
             
             start_volatility, end_volatility = test_period['Conditional Volatility'].iloc[0], test_period['Conditional Volatility'].iloc[-1]
-            lower_bound, upper_bound = generate_bounds(start_price, start_volatility, risk_params)
+            lower_bound, upper_bound = generate_bounds(start_volatility, end_volatility, start_price, end_price, confidence=risk_params)
+            
+            #lower_bound, upper_bound = 0.04177481929059751, 0.07653292116574624
+            print(f"Lower Bound: {lower_bound}, Upper Bound: {upper_bound}")
+            
+            # Run Simulations generate fees
+            #res1, res2, res3, fee_outputs = self.backtester.backtest(lower_bound, upper_bound, start_date, end_date)
+            #results['Fee Results'].append([res1, res2, res3, fee_outputs])
+
+            
+            Address =  "0xcbcdf9626bc03e24f779434178a73a0b4bad62ed"
+            res1, exit_value, exit_value_usd = self.backtester.uniswap_strategy_backtest(Address, lower_bound, upper_bound, 
+                                                                                         start_date, end_date, investment_amount_usd=curr_initial_investment)
+            chart1, fees_usd = self.backtester.generate_chart1(res1)
+            results['Fee Results'].append(chart1)
+            
             
             # Inititalize Hedging Costs
             
             # Add Hedging Costs
-            
-            # Run Simulations generate fees
-            res1, res2, res3 = self.backtester.backtest(lower_bound, upper_bound, start_date, end_date)
-            results['Fee Results'].append([res1, res2, res3])
-            print(res1)
-            print(res2)
-            print(res3)
+            hedgingcosts = 0
+            curr_initial_investment = exit_value_usd + fees_usd - hedgingcosts
+            print(f'Current Value USD at end of period {start_date} to {end_date}: {curr_initial_investment}')
                     
             # Exit LP
         
@@ -88,14 +112,10 @@ class Simulator():
         
         # 3.  Metrics for the window, Hedging Costs + Fees Earned + Any possible transaction costs
         
-        
-        
-        
-        
-        return
+        return results
     
     
 if __name__ == '__main__':
     
     sim = Simulator()
-    sim.simulate()
+    sim.simulate(windows=1, risk_params=0.99)

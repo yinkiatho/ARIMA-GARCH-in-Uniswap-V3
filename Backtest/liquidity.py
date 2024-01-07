@@ -77,6 +77,7 @@ def get_liquidity(asqrt,asqrtA,asqrtB,amount0,amount1,decimal0,decimal1):
             
             liquidity0=get_liquidity0(sqrtA,sqrtB,amount0,decimal0)
             return liquidity0
+        
         elif sqrt<sqrtB and sqrt>sqrtA:
            
             liquidity0=get_liquidity0(sqrt,sqrtB,amount0,decimal0)

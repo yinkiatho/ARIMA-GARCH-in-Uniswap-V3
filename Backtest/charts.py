@@ -1,13 +1,24 @@
 import pandas as pd
+import math
 
 
-def chart1(dpd,base,myliquidity):
+def chart1(dpd,base,myliquidity, initial_amounts):
+    print('-----------------------------Chart 1-------------------------------------')
+    print(dpd)
+    amount_deposit_0, amount_deposit_1 = initial_amounts
+    print(f'Amount Depositied WBTC: {amount_deposit_0}, Amount Deposited WETH: {amount_deposit_1}')
+    initial_amountV = amount_deposit_0 + (amount_deposit_1 * dpd['close'].iloc[-1])
+    print(f'Initial Amount in WBTC: {initial_amountV}')
+    decimal0=dpd.iloc[0]['pool.token0.decimals']
+    decimal1=dpd.iloc[0]['pool.token1.decimals']
+    vtotal = math.sqrt((amount_deposit_0 * 10 ** (decimal0)) * (amount_deposit_1 * 10 ** (decimal1)))
+    
 
     if base==0:
-        dpd['feeV']= (dpd['myfee0'] ) + (dpd['myfee1']* dpd['close'])
-        dpd['amountV']= (dpd['amount0'] ) + (dpd['amount1']* dpd['close'])
-        dpd['amountunb']= (dpd['amount0unb'] )+ (dpd['amount1unb']* dpd['close'])
-        dpd['fgV']= (dpd['fee0token'])+ (dpd['fee1token']* dpd['close'])
+        dpd['feeV']= (dpd['myfee0'] ) + (dpd['myfee1'] * dpd['close'])
+        dpd['amountV']= (dpd['amount0'] ) + (dpd['amount1'] * dpd['close'])
+        dpd['amountunb']= (dpd['amount0unb'] ) + (dpd['amount1unb']* dpd['close'])
+        dpd['fgV']= (dpd['fee0token']) + (dpd['fee1token']* dpd['close'])
         dpd['feeusd']= dpd['feeV'] * (dpd['pool.totalValueLockedUSD'].iloc[0] / (dpd['pool.totalValueLockedToken1'].iloc[0]* dpd['close'].iloc[0]+(dpd['pool.totalValueLockedToken0'].iloc[0])))
 
 
@@ -19,6 +30,7 @@ def chart1(dpd,base,myliquidity):
         dpd['amountunb']= (dpd['amount0unb'] / dpd['close'])+ dpd['amount1unb']
         dpd['fgV']=(dpd['fee0token'] / dpd['close'])+ dpd['fee1token']
         dpd['feeusd']= dpd['feeV'] * ( dpd['pool.totalValueLockedUSD'].iloc[0] / (dpd['pool.totalValueLockedToken1'].iloc[0] + (dpd['pool.totalValueLockedToken0'].iloc[0]/dpd['close'].iloc[0])))
+        
 
     dpd['date']=pd.to_datetime(dpd['periodStartUnix'],unit='s')
 
@@ -43,31 +55,27 @@ def chart1(dpd,base,myliquidity):
 
     final1['S1%']=final1['feeV']/final1['amountV']*100#*365
     final1['unb%']=final1['fgV']/final1['amountunb']*100#*365
-    final1['multiplier']=final1['S1%']/final1['unb%']
+    final1['multiplier'] = final1['S1%'] / final1['unb%']
     final1['feeunb'] = final1['amountV']*final1['unb%']/100
     final1.to_csv("chart1.csv",sep = ";")
     
-    print(final1[['feeunb','feeV','feeusd','amountV','ActiveLiq','S1%','unb%','ActiveLiq']])
+    print(final1[['feeunb','feeV','feeusd','amountV','ActiveLiq','S1%','unb%']])
+    apr = final1['feeV'].sum()/final1['amountV'].iloc[0]*365/len(final1.index)*100  
+    apr_base = final1['feeunb'].sum()/final1['amountV'].iloc[0]*365/len(final1.index)*100
 
     print('------------------------------------------------------------------')
     print("Simulated Position returned", final1['feeV'].sum()/final1['amountV'].iloc[0]*100,"in ",len(final1.index)," days, for an APR of ",final1['feeV'].sum()/final1['amountV'].iloc[0]*365/len(final1.index)*100)
     print("Base position returned", final1['feeunb'].sum()/final1['amountV'].iloc[0]*100,"in ",len(final1.index)," days, for an APR of ",final1['feeunb'].sum()/final1['amountV'].iloc[0]*365/len(final1.index)*100)
     
-    print ("Fees in token 1 and token 2",dpd['myfee0'].sum(),dpd['myfee1'].sum() )
-    print("TotalFees in USD", final1['feeusd'].sum())
+    print ("Fees in token 0 and token 1",dpd['myfee0'].sum(), dpd['myfee1'].sum())
+    print("Total Fees in USD", final1['feeusd'].sum())
     print ('Your liquidity was active for:',final1['ActiveLiq'].mean())
-    
-    if base == 0:
-        forecast= (dpd['feeV'].sum()*myliquidity*final1['ActiveLiq'].mean())	
-        print(dpd['feeV'])
-        
-    else:
-        forecast= (dpd['feeVbase0'].sum()*myliquidity*final1['ActiveLiq'].mean())
-        print(dpd['feeVbase0'])
-        
-    
-    print('forecast: ',forecast)
+    #print("Total fees earned based on initial deposit: ", total_fees_earned)
     print('------------------------------------------------------------------')
+    
+    #print(f"Fees Earned: {final1['feeV'].sum()/final1['amountV'].iloc[0]*100 * vtotal}")
+    
+    
     # 1 chart e' completo
     
     # 2 chart
