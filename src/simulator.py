@@ -108,7 +108,7 @@ class Simulator():
             # Inititalize Hedging Costs
             
         
-             
+            
             # Add results
             results['Fee USD'].append(fees_usd)
             results['APR Strategy'].append(apr)
@@ -117,6 +117,7 @@ class Simulator():
             results['Mean Percentage of Active Liquidity'].append(active_liquidity)
             results['Fee Results'].append(chart1)
             
+            # Add Gas Fees
             
             # Add Hedging Costs
             hedgingcosts = 0
@@ -135,6 +136,7 @@ class Simulator():
         
         # 2.  For each window, run the backtester to get the returns for that window
         
+        
         # 3.  Metrics for the window, Hedging Costs + Fees Earned + Any possible transaction costs
         
         return results
@@ -143,4 +145,4 @@ class Simulator():
 if __name__ == '__main__':
     
     sim = Simulator()
-    sim.simulate(windows=10, risk_params=0.90)
+    sim.simulate(windows=5, risk_params=0.90)

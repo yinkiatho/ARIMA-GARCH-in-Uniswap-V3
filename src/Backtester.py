@@ -170,6 +170,7 @@ class Backtester():
         
         btc_usd_start = self.get_current_btc_price(convert_unix_to_datetime(start_timestamp))
         btc_usd_end = self.get_current_btc_price(convert_unix_to_datetime(end_timestamp))
+        
         print(f"BTC-USD Start: {btc_usd_start}, BTC-USD End: {btc_usd_end}")
         
         print(f"Initial Investment USD: {investment_amount_usd}, BTC-USD: {btc_usd_start}")
