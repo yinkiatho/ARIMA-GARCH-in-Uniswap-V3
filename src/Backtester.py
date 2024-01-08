@@ -28,8 +28,79 @@ class Backtester():
         date = pd.to_datetime(date)
         return self.btc_price.loc[date, 'Close']
         
+    ## FUNCTION THAT DECIDES AMOUNT OF EACH TOKEN FROM INITIAL CAPITAL AND PRICE RANGE
+    def setPosition(self, capital, pmin, pmax, r50 = None, dpd = None):
         
+        ## GETTING DEFAULT DATAFRAME IF NOT PROVIDED
+        if dpd == None:
+            dpd = self.dpd
+
+        ## GETTING LATEST PRICE
+        p = dpd['close'].iloc[-1] 
+
+        ## SETTING PRICE RANGE FOR 50/50 PORTFOLIO 
+        if r50 != None:
+            pmin = p / r50
+            pmax = p * r50
         
+        ## CALCULATING AMOUNT OF TOKEN 0/1
+        decimal0=dpd.iloc[0]['pool.token0.decimals']
+        decimal1=dpd.iloc[0]['pool.token1.decimals']
+        decimal=decimal1-decimal0
+        
+        SMIN=np.sqrt(pmin* 10 ** (decimal))   
+        SMAX=np.sqrt(pmax* 10 ** (decimal))  
+        
+        target = p
+        sqrt0 = np.sqrt(p* 10 ** (decimal))
+        dpd['price0'] = dpd['close']
+
+        if sqrt0>SMIN and sqrt0<SMAX:
+                deltaL = target / ((sqrt0 - SMIN)  + (((1 / sqrt0) - (1 / SMAX)) * (dpd['price0'].iloc[-1]* 10 ** (decimal))))
+                amount1 = deltaL * (sqrt0-SMIN)
+                amount0 = deltaL * ((1/sqrt0)-(1/SMAX))* 10 ** (decimal)
+        
+        elif sqrt0<SMIN:
+                deltaL = target / (((1 / SMIN) - (1 / SMAX)) * (dpd['price0'].iloc[-1]))
+                amount1 = 0
+                amount0 = deltaL * (( 1/SMIN ) - ( 1/SMAX ))
+
+        else:
+                deltaL = target / (SMAX-SMIN) 
+                amount1 = deltaL * (SMAX-SMIN)
+                amount0 = 0
+        
+        id0,id1 = getTokenId(self.Address)
+        token0PriceUSD = getTokenPrices(id0)
+        token1PriceUSD = getTokenPrices(id1)
+
+        print("Amounts Ratio: ",amount0,amount1)
+        multiplier = capital / (token0PriceUSD*amount0 + token1PriceUSD*amount1)
+
+        amount0 *= multiplier
+        amount1 *= multiplier
+        print("Amounts to Deposit: ",amount0,amount1)
+
+        ## GETTING LIQUIDITY BASED ON MY AMOUNT AND POOL AMOUNT
+        myliquidity = get_liquidity(dpd['price0'].iloc[-1],pmin,pmax,amount0,amount1,decimal0,decimal1)
+        totalLiquidity = get_liquidity(dpd['price0'].iloc[-1],pmin,pmax,dpd['pool.totalValueLockedToken0'][0],dpd['pool.totalValueLockedToken1'][0],decimal0,decimal1)
+        #poolLiquidity = dpd['pool.liquidity'].mean() # REMOVED COZ RANGE NOT SPECIFIED
+        self.myliquidity = myliquidity
+
+        print("myLiquidity: ",myliquidity)
+        print("totalLiquidity: ",totalLiquidity)
+        liquidityPerc = myliquidity/totalLiquidity
+        print("Liquidity%: ", liquidityPerc)
+        
+        return (amount0, amount1, liquidityPerc)
+        
+    def checkTransactionGasFees(amountBefore0, amountBefore1, amountAfter0, amountAfter1):
+        if (amountAfter0 - amountBefore0) > 0 and (amountAfter1 - amountBefore1) > 0:
+             return getGasPrice()
+        elif (amountAfter0 - amountBefore0) < 0 and (amountAfter1 - amountBefore1) < 0:
+             return getGasPrice()
+        else:
+             return 2 * getGasPrice()
     
     def backtest(self, mini, maxi, startdate, enddate=None, base=0, initial_investment=1000000, curr_price_eth = 2286.71):
         
@@ -37,6 +108,34 @@ class Backtester():
         startfrom, enddate = convert_to_unix(startdate), convert_to_unix(enddate)
         #print(startfrom, enddate)
         dpd = graphTwo(self.network, self.Address, startfrom, enddate)
+
+        ## CALCULATING LIQUIDITY PERCENTAGE
+        amt0, amt1, liquidityPerc = self.setPosition(initial_investment, mini, maxi)
+
+        ## FINAL FEE CALCULATION
+        dpd['myfee0'] = dpd['fee0token'] * liquidityPerc
+        dpd['myfee1'] = dpd['fee1token'] * liquidityPerc
+
+        '''
+        dpd['myfee0'] = dpd['fee0token'] * myliquidity * dpd['ActiveLiq'] / 100
+        dpd['myfee1'] = dpd['fee1token'] * myliquidity * dpd['ActiveLiq'] / 100
+        '''
+        
+        ## CALCULATING IL
+        p0 = dpd['close'].iloc[0]
+        dpd['k'] = dpd['close'].astype(float)/p0
+        
+        k0 = dpd.loc[dpd['k']>maxi/dpd['close'],'k'].astype(float)
+        dpd.loc[dpd['k']>maxi/dpd['close'],'IL'] = ((maxi/p0)**0.5 - k0*(1-(p0/maxi)**0.5) -1) / (k0*(1-(p0/maxi)**0.5) + 1 - (mini/p0)**0.5)
+
+        k1 = dpd.loc[(dpd['k']<=maxi/dpd['close']) & (dpd['k']>=mini/dpd['close']),'k'].astype(float)
+        dpd.loc[(dpd['k']<=maxi/dpd['close']) & (dpd['k']>=mini/dpd['close']),'IL'] = (2*(k1**0.5) - 1 - k1) / (1 + k1 - (mini/p0)**0.5 - k1*(p0/maxi))
+        
+        k2 = dpd.loc[dpd['k']<mini/dpd['close'],'k'].astype(float)
+        dpd.loc[dpd['k']<mini/dpd['close'],'IL'] = ((k2*((p0/mini)**0.5-1) -1 + (mini/p0)**0.5)) / (k2*(1-(p0/maxi)**0.5) + 1 - (mini/p0))
+
+        print(dpd)
+
         #print(dpd)
         dpd, myliquidity, initial_deposit = self.initial_transform(mini, maxi, startdate, enddate, dpd, base, initial_investment, curr_price_eth)
     
