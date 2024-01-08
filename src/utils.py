@@ -1,6 +1,6 @@
 import math
-from gql import gql, Client
-from gql.transport.requests import RequestsHTTPTransport
+# from gql import gql, Client
+# from gql.transport.requests import RequestsHTTPTransport
 import pandas as pd
 from datetime import datetime, timezone, timedelta
 import numpy as np
@@ -705,9 +705,9 @@ def black_scholes_call(S0, X, T, r, sigma):
     :param sigma: Volatility of the stock's returns 
     :return: Call option price 
     """ 
-    d1 = (np.log(S0 / X) + (r + 0.5 * sigma ** 2) * T) / (sigma * np.sqrt(T)) 
-    d2 = d1 - sigma * np.sqrt(T) 
-    call_price = (S0 * norm.cdf(d1) - X * np.exp(-r * T) * norm.cdf(d2)) 
+    d1 = (math.log(S0 / X) + (r + 0.5 * sigma ** 2) * T) / (sigma * math.sqrt(T)) 
+    d2 = d1 - sigma * math.sqrt(T) 
+    call_price = (S0 * norm.cdf(d1) - X * math.exp(-r * T) * norm.cdf(d2)) 
     return call_price
 
 def black_scholes_put(S0, X, T, r, sigma): 
@@ -763,30 +763,38 @@ def implied_volatility(C,S,K,r,T):
 
 
 def optionPrice(coin, strike, time, type, coinPrice, rf):
-    instrument_name = requests.get(f'https://www.deribit.com/api/v2/public/get_instruments?currency=${coin}&kind=option')
-    instrument_name = instrument_name['results'][0]["instrument_name"]    #eg of instrument_name: "BTC-9JAN24-38500-C"
+    url = f'https://www.deribit.com/api/v2/public/get_instruments?currency={coin}&kind=option'
+    instrument_name = requests.get(url)
+    instrument_name = instrument_name.json()['result'][0]["instrument_name"]    #eg of instrument_name: "BTC-9JAN24-38500-C"
     details_of_option = instrument_name.split(sep='-')
     strike_temp = details_of_option[2]
     time_temp = 1/365 #Time = 1 day expiration
     #Picked the first option in the order book for the coin specified and the name is noted with strike, Expiration date
 
 
-    C = requests.get(f'https://test.deribit.com/api/v2/public/get_order_book?depth=5&instrument_name=${instrument_name}')
-    coinPrice_temp = C["result"]["underlying_price"]
-    C = C["result"]["mark_price"]
+    response = requests.get(f'https://www.deribit.com/api/v2/public/get_order_book?depth=5&instrument_name={instrument_name}')
+    response = response.json()
+    # print(response)
+    coinPrice_temp = response["result"]["underlying_price"]
+    C = response["result"]["mark_price"]
     #Getting underlying price and option price
 
-    implied_vol = implied_volatility(C,coinPrice_temp,strike_temp,rf,time_temp)
+    # implied_vol = implied_volatility(C,coinPrice_temp,strike_temp,rf,time_temp)
     # Calculaing Implied volatility
-    #implied_vol = C["result"]["mark_price"]
+    implied_vol = response["result"]["mark_iv"]/100
+    print(implied_vol)
 
     #Using Implied Volatility to calculate option price
     if(type=='CALL'):
+        print((coinPrice,strike,time,rf,implied_vol))
         callOptionPrice = black_scholes_call(coinPrice,strike,time,rf,implied_vol)
+        print(callOptionPrice)
         return callOptionPrice
     else:
         putOptionPrice = black_scholes_put(coinPrice,strike,time,rf,implied_vol)
+        print(putOptionPrice)
         return putOptionPrice
+    
 def generate_hodl(prices, initial_investment):
     btc_start, btc_end, eth_start, eth_end = prices
     amount0, amount1 = initial_investment
@@ -815,3 +823,4 @@ def generate_hodl(prices, initial_investment):
 
 # C = S * norm.cdf(d1) - K*math.exp(-r*T) * norm.cdf(d2)
 # P = K*math.exp(-r*T) * norm.cdf(-d2) - S * norm.cdf(-d1)
+optionPrice("BTC", 100, 1, 'CALL', 42000, 2)
