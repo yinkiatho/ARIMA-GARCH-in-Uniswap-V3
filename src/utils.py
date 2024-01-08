@@ -689,6 +689,14 @@ def chart1(dpd):
     return final1, [fees_usd, apr, apr_base, final_net_liquidity, active_liquidity]
 
 
+'''Input
+- Current Close price of pool
+- Risk Free Rate (staking APY)
+- Strike Price (Call/Put)
+- Type of Option (Call/Put)
+- Time to Expiration (in years)
+'''
+
 
 def black_scholes(S0, X, T, r, sigma): 
     """ 
@@ -740,6 +748,9 @@ def implied_volatility(C,S,K,r,T):
         epsilon = abs((vol - original_vol)/original_vol)
     print(vol)
     return vol
+
+
+
 # import math
 # from scipy.stats import norm
 

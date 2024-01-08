@@ -106,7 +106,8 @@ class Simulator():
             
             
             # Inititalize Hedging Costs
-            
+            #list_options = []
+            #total_premiums = sum[get_premiums(****) for option in options]
         
             
             # Add results
