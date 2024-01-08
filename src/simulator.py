@@ -25,16 +25,35 @@ class Simulator():
         self.Address = Address
         self.network = network
         self.backtester = Backtester(Address, network)
-        self.arima_garch = ARIMA_GARCH((1,1,1), (1,1))
+        #self.arima_garch = ARIMA_GARCH((1,1,1), (1,1))
         self.model_predictions = pd.read_csv('data/pools_daily_weth_btc_arima_garch.csv', delimiter=';', index_col=0)
         self.start_date = "2023-05-25"
-        self.end_date = "2023-12-25"
+        self.end_date = "2023-12-24"
         self.btc_price = pd.read_csv('data/btc_hist.csv', delimiter=',', index_col=0)
         self.eth_price = pd.read_csv('data/eth_hist.csv', delimiter=',', index_col=0)
+        self.futures_data = pd.read_csv('data/futures_data.csv', delimiter=',', index_col=0, parse_dates=True)
         # Round to nearest second
         self.btc_price.index = pd.to_datetime(self.btc_price.index).round('1s')
         self.eth_price.index = pd.to_datetime(self.eth_price.index).round('1s')
         
+    
+    def get_futures_price(self, end_date):
+        #print(self.futures_data)
+        # Get the futures price for the end date
+        return self.futures_data.loc[self.futures_data.index <= end_date]['Spot Price'].iloc[-1]
+    
+    
+    def get_current_btc_price(self, date):
+        #print(date)
+        #print(self.btc_price)
+        date = pd.to_datetime(date)
+        return self.btc_price.loc[date, 'Close']
+    
+    def get_current_eth_price(self, date):
+        #print(date)
+        #print(self.btc_price)
+        date = pd.to_datetime(date)
+        return self.eth_price.loc[date, 'Close']
     
     def get_options_payoff(self, end_date, list_options, num_contracts=1):
         
@@ -60,7 +79,6 @@ class Simulator():
         
         
     def get_options(self, start_date, end_date, num_contracts=1):
-        
         days_to_expiry = (pd.to_datetime(end_date) - pd.to_datetime(start_date)).days
         overnight_apy = 0.0515
         price_ranges = [-0.4, -0.3, -0.2, 0.2, 0.3, 0.4]
@@ -124,6 +142,10 @@ class Simulator():
             'Test Period': [],
             'Start Date': [],
             'End Date': [],
+            'Start Price (WBTC)': [],
+            'End Price (WBTC)': [],
+            'Lower Bound': [],
+            'Upper Bound': [],
             'Final Net Liquidity Value': [],
             'Fee Results': [],
             'Fee USD': [],
@@ -134,11 +156,16 @@ class Simulator():
             'Mean Percentage of Active Liquidity': [],
             'Hedging Costs': [],
             'Impermanent Loss': [],
+            'HODL 50-50': []
             #'Total Results': []
         }
         
         curr_initial_investment = initial_investment
+        initialprice0, initialprice1 = self.get_current_btc_price(self.start_date), self.get_current_eth_price(self.start_date)
+        initalamount0, initalamount1 = curr_initial_investment * 0.5 / initialprice0, curr_initial_investment * 0.5 / initialprice1
+        curr_hodl_value = initial_investment
         for test_period in test_periods:
+            previous_hodl_value = curr_hodl_value
             # Add initial results
             results['Test Period'].append(test_period)
             results['Start Date'].append(test_period.index[0])
@@ -147,8 +174,10 @@ class Simulator():
             # Initialize Backtest
             start_date, end_date = test_period.index[0], test_period.index[-1]
             print(f"Test Period: {start_date} to {end_date}")
+            #print(f"Real Start Price (WBTC): {test_period['Close (WBTC)'].iloc[0]}, Real End Price (WBTC): {test_period['Close (WBTC)'].iloc[-1]}")
             start_price = test_period['Predicted Close (WBTC)'].iloc[0]
-            end_price = test_period['Predicted Close (WBTC)'].iloc[-1] # should be futures price
+            #end_price = test_period['Predicted Close (WBTC)'].iloc[-1] # should be futures price
+            end_price = self.get_futures_price(end_date)
 
             
             start_volatility, end_volatility = test_period['Conditional Volatility'].iloc[0], test_period['Conditional Volatility'].iloc[-1]
@@ -156,18 +185,20 @@ class Simulator():
             
             #lower_bound, upper_bound = 0.04177481929059751, 0.07653292116574624
             print(f"Lower Bound: {lower_bound}, Upper Bound: {upper_bound}")
+            results['Lower Bound'].append(lower_bound)
+            results['Upper Bound'].append(upper_bound)
+            results['Start Price (WBTC)'].append(start_price)
+            results['End Price (WBTC)'].append(end_price)
             
             # Run Simulations generate fees
             #res1, res2, res3, fee_outputs = self.backtester.backtest(lower_bound, upper_bound, start_date, end_date)
             #results['Fee Results'].append([res1, res2, res3, fee_outputs])
 
-            
-            Address =  "0xcbcdf9626bc03e24f779434178a73a0b4bad62ed"
-            res1, exit_value, exit_value_usd = self.backtester.uniswap_strategy_backtest(Address, lower_bound, upper_bound, 
+            res1, exit_value, exit_value_usd, hodl_value_lp = self.backtester.uniswap_strategy_backtest(self.Address, lower_bound, upper_bound, 
                                                                                          start_date, end_date, investment_amount_usd=curr_initial_investment)
             
             res1 = self.backtester.add_IL(lower_bound, upper_bound, res1)
-            print(res1)
+            #print(res1)
             results['Impermanent Loss'].append(res1['IL'].tolist())
             chart1, stats = self.backtester.generate_chart1(res1)
             fees_usd, apr, apr_base, final_net_liquidity, active_liquidity = stats
@@ -182,28 +213,46 @@ class Simulator():
             #total_premiums = sum[get_premiums(****) for option in options] * 1.0003 * num_contracts
         
             
-            # Add results
+            
+            
+            # Calculating HODL Value
+            btc_usd_start, btc_usd_end = self.get_current_btc_price(start_date), self.get_current_btc_price(end_date)
+            eth_usd_start, eth_usd_end = self.get_current_eth_price(start_date), self.get_current_eth_price(end_date)
+            curr_hodl_value = generate_hodl([btc_usd_start, btc_usd_end, eth_usd_start, eth_usd_end], [initalamount0, initalamount1])
+            
+            final_il = res1['IL'].iloc[-1]
+            final_lp_value = (1 + final_il) * hodl_value_lp
+            #curr_hodl_value = hodl_final_value
+            #print(f"Final LP Value using IL: {final_lp_value}")
+            
+            # Add Gas Fees
+            
+            # Add Hedging Costs
+            #curr_initial_investment = exit_value_usd + fees_usd - total_premiums + payoff 
+            curr_initial_investment = final_lp_value + fees_usd - total_premiums + payoff
+            
+            
+            
+            
+            # Using IL as comparison to calculate final LP value
+            
+            print(f"Fees: {fees_usd}, Hedging Costs: {total_premiums}, Payoff: {payoff}")
+            print(f'Current Value USD at end of period {start_date} to {end_date}: {curr_initial_investment} USD')
+            print(f"HODL 50-50- Start Value: {previous_hodl_value}, End_Value: {curr_hodl_value}")
+            print("-------------------------------------------------------------------")
+                    
+            # Exit LP add results
             results['Fee USD'].append(fees_usd)
             results['APR Strategy'].append(apr)
             results['APR Unbounded'].append(apr_base)
             results['Final Net Liquidity Value'].append(final_net_liquidity)
             results['Mean Percentage of Active Liquidity'].append(active_liquidity)
             results['Fee Results'].append(chart1)
-            
-            # Add Gas Fees
-            
-            # Add Hedging Costs
-            curr_initial_investment = exit_value_usd + fees_usd - total_premiums + payoff 
-            
             results['Hedging Costs'].append(total_premiums)
             results['Cumulative Investment USD'].append(curr_initial_investment)
             results['Cumulative Investment WBTC'].append(exit_value)
+            results['HODL 50-50'].append(curr_hodl_value)
             
-            print(f"Exit WBTC: {exit_value}, Exit USD: {exit_value_usd}, Fees: {fees_usd}, Hedging Costs: {total_premiums}, Payoff: {payoff}")
-            print(f'Current Value USD at end of period {start_date} to {end_date}: {curr_initial_investment} USD')
-            print("-------------------------------------------------------------------")
-                    
-            # Exit LP
         
         
         # 2.  For each window, run the backtester to get the returns for that window
@@ -217,6 +266,5 @@ class Simulator():
 if __name__ == '__main__':
     
     sim = Simulator()
-    results = sim.simulate(windows=1, risk_params=0.90)
-    print(results)
+    results = sim.simulate(windows=1, risk_params=0.95)
     
