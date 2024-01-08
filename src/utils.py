@@ -21,9 +21,6 @@ def generate_bounds(start_volatility, end_volatility, start_price, expected_end=
         upper_bound = expected_end + end_volatility * z_stat
     return lower_bound, upper_bound
 
-
-
-
 def convert_to_unix(date_str):
     # Convert the date string to a datetime object
     date_obj = datetime.strptime(date_str, '%Y-%m-%d')
@@ -599,8 +596,7 @@ def create_pivot_record(date, data, price_token=0):
 def pivot_fee_data(data, price_token, investment):
     first_date = datetime.utcfromtimestamp(data[0]['periodStartUnix']).replace(tzinfo=timezone.utc)
     pivot = [create_pivot_record(first_date, data[0])]
-    
-    
+
 
     for i, d in enumerate(data[1:], start=1):
         current_date = datetime.utcfromtimestamp(d['periodStartUnix']).replace(tzinfo=timezone.utc)
@@ -669,7 +665,7 @@ def chart1(dpd):
     final1['feeunb'] = final1['amountV']*final1['unb%']/100
     final1.to_csv("chart1.csv",sep = ";")
     
-    print(final1[['feeunb','feeV','feeUSD','amountV','activeLiquidity','S1%','unb%']])
+    #print(final1[['feeunb','feeV','feeUSD','amountV','activeLiquidity','S1%','unb%']])
     apr = final1['feeV'].sum()/final1['amountV'].iloc[0]*365/len(final1.index)*100  
     apr_base = final1['feeunb'].sum()/final1['amountV'].iloc[0]*365/len(final1.index)*100
     fees_usd = final1['feeUSD'].sum()

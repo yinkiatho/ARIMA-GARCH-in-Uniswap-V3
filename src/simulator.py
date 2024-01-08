@@ -29,11 +29,74 @@ class Simulator():
         self.model_predictions = pd.read_csv('data/pools_daily_weth_btc_arima_garch.csv', delimiter=';', index_col=0)
         self.start_date = "2023-05-25"
         self.end_date = "2023-12-25"
+        self.btc_price = pd.read_csv('data/btc_hist.csv', delimiter=',', index_col=0)
+        self.eth_price = pd.read_csv('data/eth_hist.csv', delimiter=',', index_col=0)
+        # Round to nearest second
+        self.btc_price.index = pd.to_datetime(self.btc_price.index).round('1s')
+        self.eth_price.index = pd.to_datetime(self.eth_price.index).round('1s')
+        
+    
+    def get_options_payoff(self, end_date, list_options, num_contracts=1):
+        
+        payoff = 0
+        curr_eth_price = self.eth_price.loc[end_date]['Close'].iloc[0]
+        curr_btc_price = self.btc_price.loc[end_date]['Close'].iloc[0]
+        for option in list_options:
+            if option['coin'] == 'ETH':
+                curr_price = curr_eth_price
+            else:
+                curr_price = curr_btc_price
+            
+            if option['Type'] == 'CALL':
+                if curr_price > option['strike_price']:
+                    payoff += (curr_price - option['strike_price']) * num_contracts          
+            else:
+                if curr_price < option['strike_price']:
+                    payoff += (option['strike_price'] - curr_price) * num_contracts
+                    
+        return payoff
+            
+            
+        
+        
+    def get_options(self, start_date, end_date, num_contracts=1):
+        
+        days_to_expiry = (pd.to_datetime(end_date) - pd.to_datetime(start_date)).days
+        overnight_apy = 0.0515
+        price_ranges = [-0.4, -0.3, -0.2, 0.2, 0.3, 0.4]
+        total_options = []
+        curr_eth_price = self.eth_price.loc[start_date]['Close'].iloc[0]
+        curr_btc_price = self.btc_price.loc[start_date]['Close'].iloc[0]
+        
+        # +- 20, 30, 40% of current price for strike price
+        for coin in ['ETH', 'BTC']:
+            if coin == 'ETH':
+                curr_price = curr_eth_price
+            else:
+                curr_price = curr_btc_price
+                
+            for price_range in price_ranges:
+                if price_range < 0:
+                    type = 'PUT'
+                else:
+                    type = 'CALL'
+                    
+                strike_price = curr_price * (1 + price_range)
+                option = {
+                    'coin': coin,
+                    'strike_price': strike_price,
+                    'Time to Expiry': days_to_expiry / 365,
+                    'staking_apy': overnight_apy,
+                    'Type' : type,
+                    'Close Price (USD)': curr_price
+                }
+                total_options.append(option)
+                
+        return total_options
         
     def divide_windows(self, windows=1):
         
         test_period = self.model_predictions[(self.model_predictions.index >= self.start_date) & (self.model_predictions.index <= self.end_date)]
-        
         if windows == 1:
             return [test_period]
         
@@ -70,7 +133,8 @@ class Simulator():
             'Cumulative Investment WBTC': [],
             'Mean Percentage of Active Liquidity': [],
             'Hedging Costs': [],
-            'Total Results': []
+            'Impermanent Loss': [],
+            #'Total Results': []
         }
         
         curr_initial_investment = initial_investment
@@ -101,13 +165,21 @@ class Simulator():
             Address =  "0xcbcdf9626bc03e24f779434178a73a0b4bad62ed"
             res1, exit_value, exit_value_usd = self.backtester.uniswap_strategy_backtest(Address, lower_bound, upper_bound, 
                                                                                          start_date, end_date, investment_amount_usd=curr_initial_investment)
+            
+            res1 = self.backtester.add_IL(lower_bound, upper_bound, res1)
+            print(res1)
+            results['Impermanent Loss'].append(res1['IL'].tolist())
             chart1, stats = self.backtester.generate_chart1(res1)
             fees_usd, apr, apr_base, final_net_liquidity, active_liquidity = stats
             
             
             # Inititalize Hedging Costs
-            #list_options = []
-            #total_premiums = sum[get_premiums(****) for option in options]
+            list_options = self.get_options(start_date, end_date)
+            num_contracts = initial_investment / 1000000
+            #print(list_options)
+            total_premiums = 0
+            payoff = self.get_options_payoff(end_date, list_options, num_contracts=num_contracts)
+            #total_premiums = sum[get_premiums(****) for option in options] * 1.0003 * num_contracts
         
             
             # Add results
@@ -121,14 +193,13 @@ class Simulator():
             # Add Gas Fees
             
             # Add Hedging Costs
-            hedgingcosts = 0
-            curr_initial_investment = exit_value_usd + fees_usd - hedgingcosts
+            curr_initial_investment = exit_value_usd + fees_usd - total_premiums + payoff 
             
-            results['Hedging Costs'].append(hedgingcosts)
+            results['Hedging Costs'].append(total_premiums)
             results['Cumulative Investment USD'].append(curr_initial_investment)
             results['Cumulative Investment WBTC'].append(exit_value)
             
-            print(f"Exit WBTC: {exit_value}, Exit USD: {exit_value_usd}, Fees: {fees_usd}, Hedging Costs: {hedgingcosts}")
+            print(f"Exit WBTC: {exit_value}, Exit USD: {exit_value_usd}, Fees: {fees_usd}, Hedging Costs: {total_premiums}, Payoff: {payoff}")
             print(f'Current Value USD at end of period {start_date} to {end_date}: {curr_initial_investment} USD')
             print("-------------------------------------------------------------------")
                     
@@ -146,4 +217,6 @@ class Simulator():
 if __name__ == '__main__':
     
     sim = Simulator()
-    sim.simulate(windows=5, risk_params=0.90)
+    results = sim.simulate(windows=1, risk_params=0.90)
+    print(results)
+    
