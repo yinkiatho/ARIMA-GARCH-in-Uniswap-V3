@@ -159,7 +159,7 @@ class Backtester():
 
         amount0 *= multiplier
         amount1 *= multiplier
-        print("Amounts: ",amount0,amount1)
+        #print("Amounts: ",amount0,amount1)
         return [amount0, amount1]
     
     def add_IL(self, mini, maxi, dpd):
@@ -219,7 +219,22 @@ class Backtester():
         final1, final2, final3, results = chart1(dpd,base,myliquidity, initial_amounts=initial_deposit)
         
         return final1, final2, final3, results
+    
+    def generate_hodl(self, prices, initial_investment):
+        btc_start, btc_end, eth_start, eth_end = prices
         
+        # Calculate the initial investment for each coin (50-50 split)
+        btc_investment = initial_investment / 2
+        eth_investment = initial_investment / 2
+        
+        # Calculate the final value for each coin based on the price change
+        btc_final_value = btc_investment * (btc_end / btc_start)
+        eth_final_value = eth_investment * (eth_end / eth_start)
+        
+        # Calculate the total final value in USD
+        total_final_value = btc_final_value + eth_final_value
+        
+        return total_final_value
     
     
     
@@ -234,18 +249,15 @@ class Backtester():
         hourly_price_data = graphTwo(1, pool, start_timestamp, end_timestamp)
         #print(hourly_price_data)
         
+        btc_usd_start, btc_usd_end = self.get_current_btc_price(convert_unix_to_datetime(start_timestamp)), self.get_current_btc_price(convert_unix_to_datetime(end_timestamp))
+        eth_usd_start, eth_usd_end = self.get_current_eth_price(convert_unix_to_datetime(start_timestamp)), self.get_current_eth_price(convert_unix_to_datetime(end_timestamp))
+        hodl_final_value = self.generate_hodl([btc_usd_start, btc_usd_end, eth_usd_start, eth_usd_end], investment_amount_usd)
         
-        
-        btc_usd_start = self.get_current_btc_price(convert_unix_to_datetime(start_timestamp))
-        btc_usd_end = self.get_current_btc_price(convert_unix_to_datetime(end_timestamp))
-        
-        print(f"BTC-USD Start: {btc_usd_start}, BTC-USD End: {btc_usd_end}")
         print(f"Initial Investment USD: {investment_amount_usd}, BTC-USD: {btc_usd_start}")
     
         investment_amount = investment_amount_usd/btc_usd_start
         #print(f"Initial Investment: {investment_amount} WBTC")
         
-
         if len(hourly_price_data) > 0:
             backtest_data = hourly_price_data.iloc[::-1].reset_index(drop=True)
             #print(backtest_data)
@@ -280,7 +292,7 @@ class Backtester():
             #print(f"Total Exit Value: {total_exit_value}")
             exit_value_usd = total_exit_value * btc_usd_end
             
-            return final_result, total_exit_value, exit_value_usd
+            return final_result, total_exit_value, exit_value_usd, hodl_final_value
         
         
     def generate_chart1(self, dpd):
@@ -296,21 +308,29 @@ class Backtester():
         
         if final_price > initial_price and final_price < max_range:
             ratio = (final_price - initial_price) / (max_range - initial_price)
-            final_amount1 = initial_amount1 * (1 + ratio)
-            final_amount0 = initial_amount0 * (1 - ratio)
+            #final_amount1 = initial_amount1 * (1 + ratio)
+            #final_amount0 = initial_amount0 * (1 - ratio)
+            final_amount1 = initial_amount1 * (1 - ratio)
+            final_amount0 = initial_amount0 * (1 + ratio)
             
         elif final_price < initial_price and final_price > min_range:
             ratio = (initial_price - final_price) / (initial_price - min_range)
-            final_amount1 = initial_amount1 * (1 - ratio)
-            final_amount0 = initial_amount0 * ( 1 + ratio)
+            #final_amount1 = initial_amount1 * (1 - ratio)
+            #final_amount0 = initial_amount0 * ( 1 + ratio)
+            final_amount1 = initial_amount1 * (1 + ratio)
+            final_amount0 = initial_amount0 * (1 - ratio)
             
         elif final_price > max_range:
-            final_amount0 = 0
-            final_amount1 = initial_amount1 * 2
-            
-        elif final_price < min_range:
+            #final_amount0 = 0
+            #final_amount1 = initial_amount1 * 2
             final_amount0 = initial_amount0 * 2
             final_amount1 = 0
+            
+        elif final_price < min_range:
+            #final_amount0 = initial_amount0 * 2
+            #final_amount1 = 0
+            final_amount0 = 0
+            final_amount1 = initial_amount1 * 2
             
         print(f"Final Amounts: {final_amount0} token0, {final_amount1} token1")
         

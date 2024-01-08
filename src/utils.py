@@ -746,6 +746,19 @@ def implied_volatility(C,S,K,r,T):
     return vol
 
 
+def generate_hodl(prices, initial_investment):
+    btc_start, btc_end, eth_start, eth_end = prices
+    amount0, amount1 = initial_investment
+        
+    # Calculate the final value for each coin based on the price change
+    btc_final_value = amount0 * (btc_end)
+    eth_final_value = amount1 * (eth_end)
+        
+    # Calculate the total final value in USD
+    total_final_value = btc_final_value + eth_final_value
+        
+    return total_final_value
+
 
 # import math
 # from scipy.stats import norm
