@@ -687,3 +687,70 @@ def chart1(dpd):
     #print("Total fees earned based on initial deposit: ", total_fees_earned)
     #print('------------------------------------------------------------------')
     return final1, [fees_usd, apr, apr_base, final_net_liquidity, active_liquidity]
+
+
+
+def black_scholes(S0, X, T, r, sigma): 
+    """ 
+    Calculate the Black-Scholes option price for a European call option. 
+
+    :param S0: Current Close Price of Uniswap v3 Pool 
+    :param X: Strike price of the option 
+    :param T: Time to expiration in years 
+    :param r: Risk-free interest rate 
+    :param sigma: Volatility of the stock's returns 
+    :return: Call option price 
+    """ 
+    d1 = (np.log(S0 / X) + (r + 0.5 * sigma ** 2) * T) / (sigma * np.sqrt(T)) 
+    d2 = d1 - sigma * np.sqrt(T) 
+    call_price = (S0 * norm.cdf(d1) - X * np.exp(-r * T) * norm.cdf(d2)) 
+    return call_price 
+
+def implied_volatility(C,S,K,r,T):
+    """ 
+    Calculate the Implied Volatility from option price for a European call option. 
+
+    :param C: Call Option Price 
+    :param S: Current Close Price of Uniswap v3 Pool 
+    :param S: Strike price of the option 
+    :param T: Time to expiration in years 
+    :param r: Risk-free interest rate 
+    :return: implied Volatility 
+    """ 
+    tolerance = 0.001
+    epsilon = 1
+    
+    count = 0
+    max_iter = 1000
+
+    vol = 0.50 
+    while epsilon>tolerance:
+        count += 1
+        if count>=max_iter:
+            print("Max iterations reached!")
+            break
+        original_vol = vol
+
+        call_price = black_scholes(S,K,T,r,vol)
+        function_value = call_price - C
+        d1 = (np.log(S / K) + (r + 0.5 * vol ** 2) * T) / (vol * np.sqrt(T)) 
+        vega = S*norm.pdf(d1) * math.sqrt(T)
+        vol = -function_value/vega + vol
+
+        epsilon = abs((vol - original_vol)/original_vol)
+    print(vol)
+    return vol
+# import math
+# from scipy.stats import norm
+
+# S = 1#Price of Underlying
+# K = 1#Strike Price
+# T = 1# Time to maturity
+# r = 1# Use 10 year Treasury Yield
+# Vol = 1# Volatility
+
+# d1 = (math.log(S/K) + (r+0.5*Vol**2)*T)/(Vol*math.sqrt(T))
+# d2 = d1 - Vol*math.sqrt(T)
+
+# C = S * norm.cdf(d1) - K*math.exp(-r*T) * norm.cdf(d2)
+# P = K*math.exp(-r*T) * norm.cdf(-d2) - S * norm.cdf(-d1)
