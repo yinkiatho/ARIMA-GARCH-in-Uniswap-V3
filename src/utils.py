@@ -6,7 +6,7 @@ from datetime import datetime, timezone, timedelta
 import numpy as np
 from scipy.stats import norm
 from numberstwo import *
-
+import requests
 
 def generate_bounds(start_volatility, end_volatility, start_price, expected_end=0.05269, confidence=0.95):
     # Calculate the lower and upper bounds
@@ -694,7 +694,7 @@ def chart1(dpd):
 '''
 
 
-def black_scholes(S0, X, T, r, sigma): 
+def black_scholes_call(S0, X, T, r, sigma): 
     """ 
     Calculate the Black-Scholes option price for a European call option. 
 
@@ -708,7 +708,23 @@ def black_scholes(S0, X, T, r, sigma):
     d1 = (np.log(S0 / X) + (r + 0.5 * sigma ** 2) * T) / (sigma * np.sqrt(T)) 
     d2 = d1 - sigma * np.sqrt(T) 
     call_price = (S0 * norm.cdf(d1) - X * np.exp(-r * T) * norm.cdf(d2)) 
-    return call_price 
+    return call_price
+
+def black_scholes_put(S0, X, T, r, sigma): 
+    """ 
+    Calculate the Black-Scholes option price for a European put option. 
+
+    :param S0: Current Close Price of Uniswap v3 Pool 
+    :param X: Strike price of the option 
+    :param T: Time to expiration in years 
+    :param r: Risk-free interest rate 
+    :param sigma: Volatility of the stock's returns 
+    :return: Call option price 
+    """ 
+    d1 = (np.log(S0 / X) + (r + 0.5 * sigma ** 2) * T) / (sigma * np.sqrt(T)) 
+    d2 = d1 - sigma * np.sqrt(T) 
+    put_price = X*math.exp(-r*T) * norm.cdf(-d2) - S0 * norm.cdf(-d1)
+    return put_price
 
 def implied_volatility(C,S,K,r,T):
     """ 
@@ -716,7 +732,7 @@ def implied_volatility(C,S,K,r,T):
 
     :param C: Call Option Price 
     :param S: Current Close Price of Uniswap v3 Pool 
-    :param S: Strike price of the option 
+    :param K: Strike price of the option 
     :param T: Time to expiration in years 
     :param r: Risk-free interest rate 
     :return: implied Volatility 
@@ -735,7 +751,7 @@ def implied_volatility(C,S,K,r,T):
             break
         original_vol = vol
 
-        call_price = black_scholes(S,K,T,r,vol)
+        call_price = black_scholes_call(S,K,T,r,vol)
         function_value = call_price - C
         d1 = (np.log(S / K) + (r + 0.5 * vol ** 2) * T) / (vol * np.sqrt(T)) 
         vega = S*norm.pdf(d1) * math.sqrt(T)
@@ -746,7 +762,31 @@ def implied_volatility(C,S,K,r,T):
     return vol
 
 
+def optionPrice(coin, strike, time, type, coinPrice, rf):
+    instrument_name = requests.get(f'https://www.deribit.com/api/v2/public/get_instruments?currency=${coin}&kind=option')
+    instrument_name = instrument_name['results'][0]["instrument_name"]    #eg of instrument_name: "BTC-9JAN24-38500-C"
+    details_of_option = instrument_name.split(sep='-')
+    strike_temp = details_of_option[2]
+    time_temp = 1/365 #Time = 1 day expiration
+    #Picked the first option in the order book for the coin specified and the name is noted with strike, Expiration date
 
+
+    C = requests.get(f'https://test.deribit.com/api/v2/public/get_order_book?depth=5&instrument_name=${instrument_name}')
+    coinPrice_temp = C["result"]["underlying_price"]
+    C = C["result"]["mark_price"]
+    #Getting underlying price and option price
+
+    implied_vol = implied_volatility(C,coinPrice_temp,strike_temp,rf,time_temp)
+    # Calculaing Implied volatility
+    #implied_vol = C["result"]["mark_price"]
+
+    #Using Implied Volatility to calculate option price
+    if(type=='CALL'):
+        callOptionPrice = black_scholes_call(coinPrice,strike,time,rf,implied_vol)
+        return callOptionPrice
+    else:
+        putOptionPrice = black_scholes_put(coinPrice,strike,time,rf,implied_vol)
+        return putOptionPrice
 # import math
 # from scipy.stats import norm
 
