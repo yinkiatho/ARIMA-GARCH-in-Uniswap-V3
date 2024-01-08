@@ -142,6 +142,10 @@ class Simulator():
             'Test Period': [],
             'Start Date': [],
             'End Date': [],
+            'Start Price (WBTC)': [],
+            'End Price (WBTC)': [],
+            'Lower Bound': [],
+            'Upper Bound': [],
             'Final Net Liquidity Value': [],
             'Fee Results': [],
             'Fee USD': [],
@@ -181,6 +185,10 @@ class Simulator():
             
             #lower_bound, upper_bound = 0.04177481929059751, 0.07653292116574624
             print(f"Lower Bound: {lower_bound}, Upper Bound: {upper_bound}")
+            results['Lower Bound'].append(lower_bound)
+            results['Upper Bound'].append(upper_bound)
+            results['Start Price (WBTC)'].append(start_price)
+            results['End Price (WBTC)'].append(end_price)
             
             # Run Simulations generate fees
             #res1, res2, res3, fee_outputs = self.backtester.backtest(lower_bound, upper_bound, start_date, end_date)
