@@ -221,7 +221,7 @@ def chart1(dpd,base,myliquidity, initial_amounts):
     final1['unb%']=final1['fgV']/final1['amountunb']*100#*365
     final1['multiplier'] = final1['S1%'] / final1['unb%']
     final1['feeunb'] = final1['amountV']*final1['unb%']/100
-    final1.to_csv("chart1.csv",sep = ";")
+    #final1.to_csv("chart1.csv",sep = ";")
     
     print(final1[['feeunb','feeV','feeusd','amountV','ActiveLiq','S1%','unb%']])
 

@@ -8,7 +8,6 @@ from statsmodels.tsa.arima.model import ARIMA
 from statsmodels.tsa.stattools import adfuller, acf, pacf
 from statsmodels.graphics.tsaplots import plot_acf, plot_pacf
 from arch import arch_model   
-from sklearn import metrics 
 import defi.defi_tools as dft
 import math 
 import random
@@ -17,6 +16,8 @@ from statsmodels.graphics.gofplots import qqplot
 from ARIMA_GARCH import ARIMA_GARCH
 from Backtester import Backtester
 from utils import *
+import os
+
 
 class Simulator():
     
@@ -26,12 +27,19 @@ class Simulator():
         self.network = network
         self.backtester = Backtester(Address, network)
         #self.arima_garch = ARIMA_GARCH((9, 0, 2), (1,1))
-        self.model_predictions = pd.read_csv('data/pools_daily_weth_btc_arima_garch.csv', delimiter=';', index_col=0)
+        try: 
+            self.model_predictions = pd.read_csv('data/pools_daily_weth_btc_arima_garch.csv', delimiter=';', index_col=0)
+            self.btc_price = pd.read_csv('data/btc_hist.csv', delimiter=',', index_col=0)
+            self.eth_price = pd.read_csv('data/eth_hist.csv', delimiter=',', index_col=0)
+            self.futures_data = pd.read_csv('data/futures_data.csv', delimiter=',', index_col=0, parse_dates=True)
+        except:
+            self.model_predictions = pd.read_csv('../data/pools_daily_weth_btc_arima_garch.csv', delimiter=';', index_col=0)
+            self.btc_price = pd.read_csv('../data/btc_hist.csv', delimiter=',', index_col=0)
+            self.eth_price = pd.read_csv('../data/eth_hist.csv', delimiter=',', index_col=0)
+            self.futures_data = pd.read_csv('../data/futures_data.csv', delimiter=',', index_col=0, parse_dates=True)
         self.start_date = "2023-05-25"
         self.end_date = "2023-12-24"
-        self.btc_price = pd.read_csv('data/btc_hist.csv', delimiter=',', index_col=0)
-        self.eth_price = pd.read_csv('data/eth_hist.csv', delimiter=',', index_col=0)
-        self.futures_data = pd.read_csv('data/futures_data.csv', delimiter=',', index_col=0, parse_dates=True)
+        
         # Round to nearest second
         self.btc_price.index = pd.to_datetime(self.btc_price.index).round('1s')
         self.eth_price.index = pd.to_datetime(self.eth_price.index).round('1s')
@@ -144,7 +152,7 @@ class Simulator():
                     'Type' : type,
                     'Close Price (USD)': curr_price
                 }
-                print(option)
+                #print(option)
                 total_options.append(option)
                 
         return total_options

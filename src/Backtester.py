@@ -16,8 +16,12 @@ class Backtester():
         print("Initializing Backtester...")
         self.Address = Address
         self.network = network
-        self.btc_price = pd.read_csv('data/btc_hist.csv', delimiter=',', index_col=0)
-        self.eth_price = pd.read_csv('data/eth_hist.csv', delimiter=',', index_col=0)
+        try:   
+            self.btc_price = pd.read_csv('data/btc_hist.csv', delimiter=',', index_col=0)
+            self.eth_price = pd.read_csv('data/eth_hist.csv', delimiter=',', index_col=0)
+        except:
+            self.btc_price = pd.read_csv('../data/btc_hist.csv', delimiter=',', index_col=0)
+            self.eth_price = pd.read_csv('../data/eth_hist.csv', delimiter=',', index_col=0)
         
         # Round to nearest second
         self.btc_price.index = pd.to_datetime(self.btc_price.index).round('1s')
