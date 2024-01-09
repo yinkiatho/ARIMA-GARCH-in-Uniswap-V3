@@ -25,7 +25,7 @@ class Simulator():
         self.Address = Address
         self.network = network
         self.backtester = Backtester(Address, network)
-        #self.arima_garch = ARIMA_GARCH((1,1,1), (1,1))
+        #self.arima_garch = ARIMA_GARCH((9, 0, 2), (1,1))
         self.model_predictions = pd.read_csv('data/pools_daily_weth_btc_arima_garch.csv', delimiter=';', index_col=0)
         self.start_date = "2023-05-25"
         self.end_date = "2023-12-24"
@@ -74,6 +74,42 @@ class Simulator():
                     payoff += (option['strike_price'] - curr_price) * num_contracts
                     
         return payoff
+    
+    
+    def get_options_straddle(self, start_date, end_date, close_ratio, num_contracts=1):
+        days_to_expiry = (pd.to_datetime(end_date) - pd.to_datetime(start_date)).days
+        overnight_apy = 0.0515
+        total_options = []
+        curr_eth_price = self.eth_price.loc[start_date]['Close'].iloc[0]
+        curr_btc_price = self.btc_price.loc[start_date]['Close'].iloc[0]
+        num_btc = 1
+        num_eth = int(num_btc / close_ratio)
+        
+        for coin in ['ETH', 'BTC']:
+            if coin == 'ETH':
+                curr_price = curr_eth_price
+            else:
+                curr_price = curr_btc_price
+            for type in ['CALL', 'PUT']:
+                strike_price = curr_price
+                option = {
+                    'coin': coin,
+                    'strike_price': strike_price,
+                    'Time to Expiry': days_to_expiry / 365,
+                    'staking_apy': overnight_apy,
+                    'Type' : type,
+                    'Close Price (USD)': curr_price
+                }
+                #print(option)
+                
+                if coin == 'ETH':
+                    total_options += [option] * num_eth
+                    
+                else:
+                    total_options += [option] * num_btc
+                #total_options.append(option)
+                
+        return total_options
             
             
         
@@ -108,27 +144,34 @@ class Simulator():
                     'Type' : type,
                     'Close Price (USD)': curr_price
                 }
+                print(option)
                 total_options.append(option)
                 
         return total_options
         
     def divide_windows(self, windows=1):
-        
         test_period = self.model_predictions[(self.model_predictions.index >= self.start_date) & (self.model_predictions.index <= self.end_date)]
+
         if windows == 1:
             return [test_period]
-        
         else:
-            interval = int(len(test_period) // windows)
+            min_window_length = 1  # Minimum length of each window in months
+            total_months = len(test_period) // 30
+            print(f"Total Months: {total_months}")
+
+            # Calculate the maximum possible windows with minimally one-month length
+            max_windows = min(windows, total_months // min_window_length)
+
+            interval = len(test_period) // max_windows
             test_periods = []
-            for i in range(windows):
-                
-                if i == windows - 1:
-                    test_periods.append(test_period.iloc[i*interval:])
+
+            for i in range(max_windows):
+                if i == max_windows - 1:
+                    test_periods.append(test_period.iloc[i * interval:])
                 else:
-                    test_periods.append(test_period.iloc[i*interval:(i+1)*interval])
-        
-        return test_periods
+                    test_periods.append(test_period.iloc[i * interval:(i + 1) * interval])
+
+            return test_periods
         
     
     def simulate(self, windows=1, risk_params=0.95, initial_investment=1000000):
@@ -155,6 +198,7 @@ class Simulator():
             'Cumulative Investment WBTC': [],
             'Mean Percentage of Active Liquidity': [],
             'Hedging Costs': [],
+            'Payoff': [],
             'Impermanent Loss': [],
             'HODL 50-50': []
             #'Total Results': []
@@ -175,7 +219,7 @@ class Simulator():
             start_date, end_date = test_period.index[0], test_period.index[-1]
             print(f"Test Period: {start_date} to {end_date}")
             #print(f"Real Start Price (WBTC): {test_period['Close (WBTC)'].iloc[0]}, Real End Price (WBTC): {test_period['Close (WBTC)'].iloc[-1]}")
-            start_price = test_period['Predicted Close (WBTC)'].iloc[0]
+            start_price = test_period['Close (WBTC)'].iloc[0]
             #end_price = test_period['Predicted Close (WBTC)'].iloc[-1] # should be futures price
             end_price = self.get_futures_price(end_date)
 
@@ -183,7 +227,6 @@ class Simulator():
             start_volatility, end_volatility = test_period['Conditional Volatility'].iloc[0], test_period['Conditional Volatility'].iloc[-1]
             lower_bound, upper_bound = generate_bounds(start_volatility, end_volatility, start_price, end_price, confidence=risk_params)
             
-            #lower_bound, upper_bound = 0.04177481929059751, 0.07653292116574624
             print(f"Lower Bound: {lower_bound}, Upper Bound: {upper_bound}")
             results['Lower Bound'].append(lower_bound)
             results['Upper Bound'].append(upper_bound)
@@ -206,12 +249,14 @@ class Simulator():
             
             # Inititalize Hedging Costs
             list_options = self.get_options(start_date, end_date)
-            num_contracts = initial_investment / 1000000
+            #list_options = self.get_options_straddle(start_date, end_date, close_ratio=start_price)
+            num_contracts = (initial_investment / 1000000) 
             #print(list_options)
-            total_premiums = 0
+            #total_premiums = 0
             payoff = self.get_options_payoff(end_date, list_options, num_contracts=num_contracts)
             #total_premiums = sum[get_premiums(****) for option in options] * 1.0003 * num_contracts
-        
+            total_premiums = sum([optionPrice(option['coin'], option['strike_price'], option['Time to Expiry'], option['Type'], option['Close Price (USD)'], option['staking_apy']) for option in list_options]) * 1.0003 * num_contracts
+            print(f"Total Premiums: {total_premiums}")
             
             
             
@@ -240,6 +285,7 @@ class Simulator():
             print(f'Current Value USD at end of period {start_date} to {end_date}: {curr_initial_investment} USD')
             print(f"HODL 50-50- Start Value: {previous_hodl_value}, End_Value: {curr_hodl_value}")
             print("-------------------------------------------------------------------")
+            
                     
             # Exit LP add results
             results['Fee USD'].append(fees_usd)
@@ -249,6 +295,7 @@ class Simulator():
             results['Mean Percentage of Active Liquidity'].append(active_liquidity)
             results['Fee Results'].append(chart1)
             results['Hedging Costs'].append(total_premiums)
+            results['Payoff'].append(payoff)
             results['Cumulative Investment USD'].append(curr_initial_investment)
             results['Cumulative Investment WBTC'].append(exit_value)
             results['HODL 50-50'].append(curr_hodl_value)
@@ -266,5 +313,5 @@ class Simulator():
 if __name__ == '__main__':
     
     sim = Simulator()
-    results = sim.simulate(windows=1, risk_params=0.95)
+    results = sim.simulate(windows=1, risk_params=0.55)
     

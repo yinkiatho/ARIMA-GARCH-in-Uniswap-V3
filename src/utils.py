@@ -1,6 +1,6 @@
 import math
-# from gql import gql, Client
-# from gql.transport.requests import RequestsHTTPTransport
+from gql import gql, Client
+from gql.transport.requests import RequestsHTTPTransport
 import pandas as pd
 from datetime import datetime, timezone, timedelta
 import numpy as np
@@ -782,17 +782,17 @@ def optionPrice(coin, strike, time, type, coinPrice, rf):
     # implied_vol = implied_volatility(C,coinPrice_temp,strike_temp,rf,time_temp)
     # Calculaing Implied volatility
     implied_vol = response["result"]["mark_iv"]/100
-    print(implied_vol)
+    #print(implied_vol)
 
     #Using Implied Volatility to calculate option price
     if(type=='CALL'):
-        print((coinPrice,strike,time,rf,implied_vol))
         callOptionPrice = black_scholes_call(coinPrice,strike,time,rf,implied_vol)
-        print(callOptionPrice)
+        #print(f"CALL OPTION FOR {coin} with strike {strike} and expiration {time} days, with implied volatility {implied_vol}, Current Price {coinPrice}, Risk Free Rate {rf} is: {callOptionPrice}")
+
         return callOptionPrice
     else:
         putOptionPrice = black_scholes_put(coinPrice,strike,time,rf,implied_vol)
-        print(putOptionPrice)
+        #print(f"PUT OPTION FOR {coin} with strike {strike} and expiration {time} days, with implied volatility {implied_vol}, Current Price {coinPrice}, Risk Free Rate {rf} is: {putOptionPrice}")
         return putOptionPrice
     
 def generate_hodl(prices, initial_investment):
@@ -823,4 +823,4 @@ def generate_hodl(prices, initial_investment):
 
 # C = S * norm.cdf(d1) - K*math.exp(-r*T) * norm.cdf(d2)
 # P = K*math.exp(-r*T) * norm.cdf(-d2) - S * norm.cdf(-d1)
-optionPrice("BTC", 100, 1, 'CALL', 42000, 2)
+#optionPrice("BTC", 100, 1, 'CALL', 42000, 2)
