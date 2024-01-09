@@ -20,9 +20,8 @@ if 'src' in os.getcwd():
     relative_path = '/src'
 else:
     relative_path = ''
-os.chdir(os.getcwd() + relative_path)
+#os.chdir(os.getcwd() + relative_path)
 #os.chdir('/Users/yinki/OneDrive/Python/Crypto Whales/src')
-print(os.getcwd())
 
 Pool_address = '0xcbcdf9626bc03e24f779434178a73a0b4bad62ed' # WETH/WBTC pool 0.3% fee
 simulator = Simulator(Address='0xcbcdf9626bc03e24f779434178a73a0b4bad62ed')
