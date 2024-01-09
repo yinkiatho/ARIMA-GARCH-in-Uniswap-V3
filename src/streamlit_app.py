@@ -15,12 +15,13 @@ import sys
 #from Backtester import Backtester
 from simulator import Simulator
 from utils import *
-
-if 'src' in os.getcwd():
+#print(os.getcwd())
+#print(os.getcwd()[-3:])
+if os.getcwd()[-3:] != 'src':
     relative_path = '/src'
 else:
     relative_path = ''
-#os.chdir(os.getcwd() + relative_path)
+os.chdir(os.getcwd() + relative_path)
 #os.chdir('/Users/yinki/OneDrive/Python/Crypto Whales/src')
 
 Pool_address = '0xcbcdf9626bc03e24f779434178a73a0b4bad62ed' # WETH/WBTC pool 0.3% fee
