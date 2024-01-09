@@ -16,7 +16,7 @@ import sys
 from simulator import Simulator
 from utils import *
 
-
+print(os.getcwd())
 os.chdir('/Users/yinki/OneDrive/Python/Crypto Whales/src')
 print(os.getcwd())
 
