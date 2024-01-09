@@ -16,6 +16,7 @@ class Backtester():
         print("Initializing Backtester...")
         self.Address = Address
         self.network = network
+        
         try:   
             self.btc_price = pd.read_csv('data/btc_hist.csv', delimiter=',', index_col=0)
             self.eth_price = pd.read_csv('data/eth_hist.csv', delimiter=',', index_col=0)
@@ -31,13 +32,13 @@ class Backtester():
     def get_current_btc_price(self, date):
         #print(date)
         #print(self.btc_price)
-        date = pd.to_datetime(date)
+        date = pd.to_datetime(date).round('1s')
         return self.btc_price.loc[date, 'Close']
     
     def get_current_eth_price(self, date):
         #print(date)
         #print(self.btc_price)
-        date = pd.to_datetime(date)
+        date = pd.to_datetime(date).round('1s')
         return self.eth_price.loc[date, 'Close']
         
     ## FUNCTION THAT DECIDES AMOUNT OF EACH TOKEN FROM INITIAL CAPITAL AND PRICE RANGE
