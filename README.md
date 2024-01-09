@@ -33,6 +33,8 @@ WBTC/ETH pair chosen for its high correlation and potential to reduce impermanen
 
 ### Streamlit-app
 https://crypto-whales.streamlit.app
+
+
 Disclaimer
 This project is for research and educational purposes only. It does not constitute financial advice. Investing in cryptocurrencies involves significant risks. Use any strategies at your own risk.
 
