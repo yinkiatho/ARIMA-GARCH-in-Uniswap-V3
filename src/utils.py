@@ -243,7 +243,7 @@ def tokens_from_liquidity(price, low, high, liquidity, decimal0, decimal1):
         amount0 = liquidity * (s_high - s_low) / math.pow(2, 96) / math.pow(10, decimal1)
         return [amount0, 0]
 
-def tokens_for_strategy(min_range, max_range, investment, price, decimal):
+def tokens_for_strategy(min_range, max_range, investment, price, decimal=10):
     sqrt_price = math.sqrt(price * math.pow(10, decimal))
     sqrt_low = math.sqrt(min_range * math.pow(10, decimal))
     sqrt_high = math.sqrt(max_range * math.pow(10, decimal))
@@ -377,7 +377,8 @@ def calc_fees(data, decimal0, decimal1, price_token, liquidity, unbounded_liquid
             'amountTR': amount_tr,
             'feeUSD': fee_usd,
             'close': float(d['close']),
-            'baseClose': 1 / float(d['close']) if price_token == 1 else float(d['close'])
+            'baseClose': 1 / float(d['close']) if price_token == 1 else float(d['close']),
+            'liquidity': liquidity
         })
 
     return result
@@ -405,7 +406,8 @@ def create_pivot_record(date, data, price_token=0):
         'percFee': data['feeV'] / data['amountV'] * 100,
         'close': float(data['close']),
         'baseClose': 1 / float(data['close']) if price_token == 1 else float(data['close']),
-        'count': 1
+        'count': 1,
+        'liquidity': data['liquidity']
     }
 
 def pivot_fee_data(data, price_token, investment):
@@ -434,9 +436,11 @@ def pivot_fee_data(data, price_token, investment):
             current_price_tick['activeLiquidity'] += d['activeLiquidity']
             current_price_tick['amountVLast'] = d['amountV']
             current_price_tick['count'] += 1
+            current_price_tick['liquidity'] += d['liquidity']
 
             if i == len(data) - 1:
                 current_price_tick['activeLiquidity'] /= current_price_tick['count']
+                current_price_tick['liquidity'] /= current_price_tick['count']
                 current_price_tick['percFee'] = current_price_tick['feeV'] / current_price_tick['amountV'] * 100
         else:
             current_price_tick['activeLiquidity'] /= current_price_tick['count']
@@ -844,3 +848,39 @@ def backtest(self, mini, maxi, startdate, enddate=None, base=0, initial_investme
         final1, final2, final3, results = chart1(dpd,base,myliquidity, initial_amounts=initial_deposit)
         
         return final1, final2, final3, results
+
+def getGasPrice():
+    return 45.51746252652682,40.90824427708807
+    with open(f'../data/burns.pickle', 'rb') as file:
+        burns = pickle.load(file)
+    burns_df = pd.json_normalize(burns).reset_index(names='row')
+
+    with open(f'../data/mints.pickle', 'rb') as file:
+        mints = pickle.load(file)
+    mints_df = pd.json_normalize(mints).reset_index(names='row')
+
+    mints_gas = (mints_df['transaction.gasPrice'].astype(float)*mints_df['transaction.gasUsed'].astype(float)).mean()/1e18 * getEthPrice()
+    burn_gas = (burns_df['transaction.gasPrice'].astype(float)*burns_df['transaction.gasUsed'].astype(float)).mean()/1e18 * getEthPrice()
+    return mints_gas,burn_gas
+
+def calcGasFees(b0,b1,a0,a1):
+    mint_gas, burn_gas = getGasPrice()
+    if (a0 - b0) > 0 and (a1 - b1) > 0:
+        return mint_gas
+    elif (a0 - b0) < 0 and (a1 - b1) < 0:
+        return burn_gas
+    else:
+        return mint_gas + burn_gas
+    
+def getEndAmount(P, Pa, Pb, L):
+    amountAfter0 = 0
+    amountAfter1 = 0
+
+    if P<Pa:
+        amountAfter0 = L/(Pa)**0.5
+    elif P>Pb:
+        amountAfter1 = L*(Pb)**0.5
+    else:
+        amountAfter0 = L/(P)**0.5
+        amountAfter1 = L*(P)**0.5
+    return amountAfter0, amountAfter1

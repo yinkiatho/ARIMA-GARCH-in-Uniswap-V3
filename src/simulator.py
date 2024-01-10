@@ -169,6 +169,8 @@ class Simulator():
         initialprice0, initialprice1 = self.get_current_btc_price(self.start_date), self.get_current_eth_price(self.start_date)
         initalamount0, initalamount1 = curr_initial_investment * 0.5 / initialprice0, curr_initial_investment * 0.5 / initialprice1
         curr_hodl_value = initial_investment
+        amountAfter0, amountAfter1 = 0,0
+
         for test_period in test_periods:
             previous_hodl_value = curr_hodl_value
             # Add initial results
@@ -200,12 +202,16 @@ class Simulator():
             fees_usd, apr, apr_base, final_net_liquidity, active_liquidity = stats
             
             
-            # Inititalize Hedging Costs
+            # Initialize Hedging Costs
             list_options = self.get_options(start_date, end_date)
             num_contracts = (initial_investment / 1000000) * 3
             payoff = self.get_options_payoff(end_date, list_options, num_contracts=num_contracts, ratio=start_price)
-            gas_fees = 3000 * (initial_investment / 1000000)
-            
+
+            # Initialize Gas Costs
+            amountBefore = tokens_for_strategy(lower_bound, upper_bound, curr_initial_investment, res1['close'].iloc[1])
+            gas_fees = calcGasFees(amountAfter0, amountAfter1, amountBefore[0], amountBefore[1],)
+            amountAfter0, amountAfter1 = getEndAmount(res1['close'].iloc[-1], lower_bound, upper_bound, res1['liquidity'].iloc[-1])
+
             # Calculate Hedging Costs
             total_premiums = 0
             for option in list_options:
