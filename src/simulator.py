@@ -206,6 +206,7 @@ class Simulator():
             'Cumulative Investment WBTC': [],
             'Mean Percentage of Active Liquidity': [],
             'Hedging Costs': [],
+            'Gas Fees': [],
             'Payoff': [],
             'Impermanent Loss': [],
             'HODL 50-50': []
@@ -263,8 +264,10 @@ class Simulator():
             #total_premiums = 0
             payoff = self.get_options_payoff(end_date, list_options, num_contracts=num_contracts)
             #total_premiums = sum[get_premiums(****) for option in options] * 1.0003 * num_contracts
+            gas_fees = 3000 * (initial_investment / 1000000)
             total_premiums = sum([optionPrice(option['coin'], option['strike_price'], option['Time to Expiry'], option['Type'], option['Close Price (USD)'], option['staking_apy']) for option in list_options]) * 1.0003 * num_contracts
-            print(f"Total Premiums: {total_premiums}")
+            print(f"Total Premiums: {total_premiums}") 
+            gas_fees = 3000 * (initial_investment / 1000000)
             
             
             
@@ -282,7 +285,7 @@ class Simulator():
             
             # Add Hedging Costs
             #curr_initial_investment = exit_value_usd + fees_usd - total_premiums + payoff 
-            curr_initial_investment = final_lp_value + fees_usd - total_premiums + payoff
+            curr_initial_investment = final_lp_value + fees_usd - total_premiums + payoff - gas_fees
             
             
             
@@ -303,6 +306,7 @@ class Simulator():
             results['Mean Percentage of Active Liquidity'].append(active_liquidity)
             results['Fee Results'].append(chart1)
             results['Hedging Costs'].append(total_premiums)
+            results['Gas Fees'].append(gas_fees)
             results['Payoff'].append(payoff)
             results['Cumulative Investment USD'].append(curr_initial_investment)
             results['Cumulative Investment WBTC'].append(exit_value)

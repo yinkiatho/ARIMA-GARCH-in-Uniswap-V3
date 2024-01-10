@@ -65,12 +65,20 @@ plt.figure(figsize=(12, 6))
 plt.plot(df.index, df['Predicted Close (WBTC)'], label='Predicted Close', marker='o')
 plt.plot(df.index, df['Close (WBTC)'], label='Actual Close', marker='o')
 plt.fill_between(df.index, df['Predicted Close (WBTC)'] - 1.96 * df['Conditional Volatility'], df['Predicted Close (WBTC)'] + 1.96 * df['Conditional Volatility'], color='gray', alpha=0.2, label='Confidence Interval (95%)')
-plt.title('WBTC Predicted Close with Confidence Interval')
+plt.title('Test Period WBTC Predicted Close with Confidence Interval')
 plt.xlabel('Date')
 plt.ylabel('Close Price')
 plt.legend()
 plt.grid(True)
 st.pyplot()
+
+
+st.header("Algorithmic Trading Strategy")
+st.write("1. Given a user-inputted number of windows, divide up the test period into windows with each window length minimally one month long. This is due to our use of options contract pricing that requires an appropriate term length." + "\n" + 
+         "2. For each window, given the start price of the pool close as well as the estimated end price given by Futures data, generate boundaries based on forecasted volatility of the ARIMA-GARCH model at the start and end price, as well as the confidence interval (risk level) that the user inputs." + "\n" + 
+         "3. Initialise long strangle hedging strategy (+- 20%, 30% , 40%) , proportional to 1 million notional amount, calculating premiums using our Black-Scholes Merton estimation of Historical Option Premiums. Simulate LP investment into the liquidity pool" + "\n" + 
+         "4. At the end of the window, exit the LP. Calculate fees generated within the window, payoffs from the hedging strategy and tabulate cumulative investment amount in USD. " + "\n" + 
+         "5. Repeat Steps 2 - 4 for each window till we reach the end of the investment duration" + "\n")
 
 
 with st.spinner("Simulating LP Position..."):
@@ -116,6 +124,7 @@ for i, (start_date, end_date, start_price, end_price, lower_bound, upper_bound) 
 
     # Plot the lower and upper bounds
     plt.fill_between(window.index, lower_bound, upper_bound, color=color, alpha=0.2, label=f'Bounds {i + 1}')
+    plt.legend()
 
 st.pyplot()
 
@@ -123,29 +132,12 @@ st.pyplot()
 
 window = df.loc[(df.index >= pd.to_datetime(start_date)) & (df.index <= pd.to_datetime(end_date))]
 
-fee_col1, fee_col2 = st.columns(2)
-# Fees Columns
-with fee_col1:
-    plt.figure(figsize=(12, 6))
-    plt.plot(results['Fee USD'], label='Fees', marker='o')
-    plt.title('Fees')
-    plt.xlabel('Intervals')
-    plt.ylabel('Fees')
-    plt.legend()
-    plt.grid(True)
-    st.pyplot()
-    
-with fee_col2:
-    # Pie Chart of Fees Earned, dont really say much
-    fees = results['Fee USD']
-    # Plotting
-    fig, ax = plt.subplots(figsize=(8, 8))
-    ax.pie(fees, labels=[f'Interval {i+1}' for i in range(len(fees))], autopct='%1.1f%%', startangle=90)
-    ax.set_title('Distribution of Fees')
-    st.pyplot()
-    
+
 
     
+
+
+st.subheader("APR Results")
 apr_col1, apr_col2 = st.columns(2)
 with apr_col1:
 # Plotting APR Strategy vs APR Unbounded Bar Graphs
@@ -175,19 +167,61 @@ with apr_col2:
         'APR Unbounded': results['APR Unbounded']
     }, index=intervals)
     st.table(apr_results)
+    
 
+st.subheader("Fee Results")
+fee_col1, fee_col2 = st.columns(2)
+# Fees Columns
+with fee_col1:
+    intervals = np.arange(1, windows + 1)
+    # Generate different colors for each bar
+    colors = plt.cm.viridis(np.linspace(0, 1, len(intervals)))
+
+    plt.figure(figsize=(12, 6))
+    # Plotting bars with different colors
+    for i, interval in enumerate(intervals):
+        plt.bar(interval, results['Fee USD'][i], label=f'Interval {interval}', color=colors[i])
+
+    # Adding labels and title
+    plt.title('Fees')
+    plt.xlabel('Intervals')
+    plt.ylabel('Fees')
+    plt.legend()
+
+    # Setting discrete x-axis ticks
+    plt.xticks(intervals)
+    st.pyplot()
+    
+    
+    
+with fee_col2:
+    # Pie Chart of Fees Earned, dont really say much
+    #fees = results['Fee USD']
+    # Plotting
+    #fig, ax = plt.subplots(figsize=(8, 8))
+    #ax.pie(fees, labels=[f'Interval {i+1}' for i in range(len(fees))], autopct='%1.1f%%', startangle=90)
+    #ax.set_title('Distribution of Fees')
+    #st.pyplot()
+    
+    fee_res = pd.DataFrame({
+        'Fees': results['Fee USD'],
+        'Hedging Costs': results['Hedging Costs'],
+        'Payoff': results['Payoff'],
+        'Gas Fees': results['Gas Fees']
+    }, index=intervals)
+    st.table(fee_res)
+
+
+st.subheader("Hedging Costs vs Payoff + Fees USD")
 
 # Hedging Costs and Cumulative Investment
 inv_col1, inv_col2 = st.columns(2)
-
-
-
 with inv_col1:
 # Data
     hedging_costs = results['Hedging Costs']
     payoff = results['Payoff']
-    print(payoff)
     fees_usd = results['Fee USD']
+    gas_fees = results['Gas Fees']
 
     # Number of sets
     num_sets = len(hedging_costs)
@@ -201,13 +235,14 @@ with inv_col1:
     # Plotting
     fig, ax = plt.subplots(figsize=(12, 6))
     bar1 = ax.bar(index, hedging_costs, bar_width, label='Hedging Costs')
+    bar4 = ax.bar(index, gas_fees, bar_width, label='Gas', bottom=hedging_costs)
     bar2 = ax.bar(index + bar_width, payoff, bar_width, label='Payoff', bottom=fees_usd)
     bar3 = ax.bar(index + bar_width, fees_usd, bar_width, label='Fees USD')
 
 # Adding labels and title
-    ax.set_xlabel('Index')
+    ax.set_xlabel('Intervals')
     ax.set_ylabel('Values')
-    ax.set_title('Side-by-Side Bar Plot with Stacked Bars')
+    ax.set_title('Hedging Costs, Gas Fees, Payoff and Fees')
     ax.set_xticks(index + bar_width / 2)
     ax.set_xticklabels([f'Set {i+1}' for i in range(num_sets)])
     ax.legend()
@@ -224,7 +259,7 @@ with inv_col2:
     st.pyplot()
 
 
-
+st.subheader("Comparison against HODL 50-50")
 cum_col1, cum_col2 = st.columns(2)
 with cum_col1:
 
@@ -262,6 +297,7 @@ st.table(cumulative_results)
 
 
 
+st.subheader("Visualising Impermanent Loss for different windows")
 
 IL = results['Impermanent Loss']
 #x_values = [i for i in range(1, windows + 1)]
@@ -273,7 +309,7 @@ colors = cm.viridis(range(len(IL)))
 for i in range(len(IL)):
     axs[i].plot(IL[i], color=colors[i])
     axs[i].set_xlabel('Time Step')
-    axs[i].set_ylabel('Impermanent Loss')
+    axs[i].set_ylabel('IL')
     axs[i].set_title(f'Interval {i + 1}')
 
 plt.tight_layout()

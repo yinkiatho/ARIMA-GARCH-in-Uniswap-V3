@@ -265,7 +265,7 @@ def chart1(dpd,base,myliquidity, initial_amounts):
     ch2=final2[['amountV','feecumsum']]
     ch3=final2[['ILnorm','PNLnorm','feecumsumnorm']]
 
-    final2.to_csv("chart2.csv",sep = ";")
+    #final2.to_csv("chart2.csv",sep = ";")
     #print(ch2)
     #print(ch3)
 
