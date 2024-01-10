@@ -40,61 +40,6 @@ def convert_unix_to_datetime(unix_timestamp):
         return None
 
 
-def graph(network,Adress,fromdate):
-
-    if network == 1:
-
-        sample_transport=RequestsHTTPTransport(
-        url='https://api.thegraph.com/subgraphs/name/uniswap/uniswap-v3',
-        verify=True,
-        retries=5,
-        )
-        client = Client(
-        transport=sample_transport
-        )
-
-
-    print(fromdate)
-
-    query = gql('''
-    query ($fromdate: Int!)
-    {
-    poolHourDatas(where:{pool:"'''+str(Adress)+'''",periodStartUnix_gt:$fromdate},orderBy:periodStartUnix,orderDirection:desc,first:1000)
-    {
-    periodStartUnix
-    liquidity
-    high
-    low
-    pool{
-        
-        totalValueLockedUSD
-        totalValueLockedToken1
-        totalValueLockedToken0
-        token0
-            {decimals
-            }
-        token1
-            {decimals
-            }
-        }
-    close
-    feeGrowthGlobal0X128
-    feeGrowthGlobal1X128
-    }
- 
-    }
-    ''')
-    params = {
-    "fromdate": fromdate
-    }
-
-    response = client.execute(query,variable_values=params)
-    dpd =pd.json_normalize(response['poolHourDatas'])
-    dpd=dpd.astype(float)
-    return dpd
-
-
-
 def graphTwo(network, Adress, fromdate, todate):
     if network == 1:
         sample_transport = RequestsHTTPTransport(
@@ -164,136 +109,6 @@ def graphTwo(network, Adress, fromdate, todate):
         skip += 1000  # Assuming you want to skip 1000 records at a time
 
     return all_data
-
-
-def chart1(dpd,base,myliquidity, initial_amounts):
-    
-    results = {}
-    
-    amount_deposit_0, amount_deposit_1 = initial_amounts
-    print(f'Amount Depositied WBTC: {amount_deposit_0}, Amount Deposited WETH: {amount_deposit_1}')
-    initial_amountV = amount_deposit_0 + (amount_deposit_1 * dpd['close'].iloc[-1])
-    print(f'Initial Amount in WBTC: {initial_amountV}')
-    decimal0=dpd.iloc[0]['pool.token0.decimals']
-    decimal1=dpd.iloc[0]['pool.token1.decimals']
-    
-
-    if base==0:
-        dpd['feeV']= (dpd['myfee0'] ) + (dpd['myfee1'] * dpd['close'])
-        dpd['amountV']= (dpd['amount0'] ) + (dpd['amount1'] * dpd['close'])
-        dpd['amountunb']= (dpd['amount0unb'] ) + (dpd['amount1unb']* dpd['close'])
-        dpd['fgV']= (dpd['fee0token']) + (dpd['fee1token']* dpd['close'])
-        dpd['feeusd']= dpd['feeV'] * (dpd['pool.totalValueLockedUSD'].iloc[0] / (dpd['pool.totalValueLockedToken1'].iloc[0]* dpd['close'].iloc[0]+(dpd['pool.totalValueLockedToken0'].iloc[0])))
-
-
-    else:
-
-        dpd['feeV']= (dpd['myfee0'] / dpd['close']) + dpd['myfee1']
-        dpd['amountV']= (dpd['amount0'] / dpd['close'])+ dpd['amount1']
-        dpd['feeVbase0']= dpd['myfee0'] + (dpd['myfee1']* dpd['close'])
-        dpd['amountunb']= (dpd['amount0unb'] / dpd['close'])+ dpd['amount1unb']
-        dpd['fgV']=(dpd['fee0token'] / dpd['close'])+ dpd['fee1token']
-        dpd['feeusd']= dpd['feeV'] * ( dpd['pool.totalValueLockedUSD'].iloc[0] / (dpd['pool.totalValueLockedToken1'].iloc[0] + (dpd['pool.totalValueLockedToken0'].iloc[0]/dpd['close'].iloc[0])))
-        
-
-    dpd['date']=pd.to_datetime(dpd['periodStartUnix'],unit='s')
-
-    # 1 Chart
-    
-    #dpd['fgV']= (dpd['fg0'] / dpd['close'].iloc[0] + dpd['fg1'])
-    #rint(dpd['fg1']/dpd['amount1unb'])
-
-    data=dpd[['date','myfee0','myfee1','fgV','feeV','feeusd','amountV','ActiveLiq','amountunb','amount0','amount1','close']]
-    data=data.fillna(0)
-
-    temp = data.resample('D',on='date').sum()
-    final1 = temp[['myfee0','myfee1','feeV','fgV','feeusd']].copy()
-
-    temp2 = data.resample('D',on='date').mean()
-    final1['ActiveLiq']=temp2['ActiveLiq'].copy()
-    
-    temp3 = data.resample('D',on='date').first()
-    final1[['amountV','amountunb']]=temp3[['amountV','amountunb']].copy()
-    temp4 = data.resample('D',on='date').last()
-    final1[['amountVlast']]=temp4[['amountV']]
-
-    final1['S1%']=final1['feeV']/final1['amountV']*100#*365
-    final1['unb%']=final1['fgV']/final1['amountunb']*100#*365
-    final1['multiplier'] = final1['S1%'] / final1['unb%']
-    final1['feeunb'] = final1['amountV']*final1['unb%']/100
-    #final1.to_csv("chart1.csv",sep = ";")
-    
-    print(final1[['feeunb','feeV','feeusd','amountV','ActiveLiq','S1%','unb%']])
-
-    print('------------------------------------------------------------------')
-    print("Simulated Position returned", final1['feeV'].sum()/final1['amountV'].iloc[0]*100,"in ",len(final1.index)," days, for an APR of ",final1['feeV'].sum()/final1['amountV'].iloc[0]*365/len(final1.index)*100)
-    print("Base position returned", final1['feeunb'].sum()/final1['amountV'].iloc[0]*100,"in ",len(final1.index)," days, for an APR of ",final1['feeunb'].sum()/final1['amountV'].iloc[0]*365/len(final1.index)*100)
-    
-    print ("Fees in token 0 and token 1",dpd['myfee0'].sum(), dpd['myfee1'].sum())
-    print("Total Fees in USD", final1['feeusd'].sum())
-    print ('Your liquidity was active for:',final1['ActiveLiq'].mean())
-
-    #print("Total fees earned based on initial deposit: ", total_fees_earned)
-    print('------------------------------------------------------------------')
-    
-    results['Position Return'] = final1['feeV'].sum()/final1['amountV'].iloc[0]*100
-    results['Base Return'] = final1['feeunb'].sum()/final1['amountV'].iloc[0]*100
-    results['Position APR'] = final1['feeV'].sum()/final1['amountV'].iloc[0]*365/len(final1.index)*100
-    results['Base APR'] = final1['feeunb'].sum()/final1['amountV'].iloc[0]*365/len(final1.index)*100
-    results['Fees in Token 0'] = dpd['myfee0'].sum()
-    results['Fees in Token 1'] = dpd['myfee1'].sum()
-    results['Total Fees in USD'] = final1['feeusd'].sum()
-    results['Mean Percentage of Active Liquidity'] = final1['ActiveLiq'].mean()
-    
-    
-    final2=temp3[['amountV','amount0','amount1','close']].copy()
-    final2['feeV']=temp['feeV'].copy()
-    final2[['amountVlast']]=temp4[['amountV']]
-    
-
-    final2['HODL']=final2['amount0'].iloc[0] / final2['close'] + final2['amount1'].iloc[0]
-    
-    final2['IL']=final2['amountVlast']- final2['HODL']
-    final2['ActiveLiq']=temp2['ActiveLiq'].copy()
-    final2['feecumsum']=final2['feeV'].cumsum()
-    final2 ['PNL']= final2['feecumsum'] + final2['IL']#-Bfinal['gas']
-
-    final2['HODLnorm']=final2['HODL']/final2['amountV'].iloc[0]*100
-    final2['ILnorm']=final2['IL']/final2['amountV'].iloc[0]*100
-    final2['PNLnorm']=final2['PNL']/final2['amountV'].iloc[0]*100
-    final2['feecumsumnorm'] = final2['feecumsum']/final2['amountV'].iloc[0]*100
-    ch2=final2[['amountV','feecumsum']]
-    ch3=final2[['ILnorm','PNLnorm','feecumsumnorm']]
-
-    #final2.to_csv("chart2.csv",sep = ";")
-    #print(ch2)
-    #print(ch3)
-
-    #final3=data
-    final3=pd.DataFrame()
-    final3['amountV']=data['amountV']
-
-    final3['amountVlast']=data['amountV'].shift(-1)
-    final3['date']=data['date']
-    final3['HODL']=data['amount0'].iloc[0] / data['close'] + data['amount1'].iloc[0]
-
-    final3['amountVlast'].iloc[-1]=final3['HODL'].iloc[-1]
-    final3['IL']=final3['amountVlast']- final3['HODL']
-    final3['feecumsum']=data['feeV'][::-1].cumsum()
-    final3 ['PNL']= final3['feecumsum'] + final3['IL']
-    final3['HODLnorm']=final3['HODL']/final3['amountV'].iloc[0]*100
-    final3['ILnorm']=final3['IL']/final3['amountV'].iloc[0]*100
-    final3['PNLnorm']=final3['PNL']/final3['amountV'].iloc[0]*100
-    final3['feecumsumnorm'] = final3['feecumsum']/final3['amountV'].iloc[0]*100
-
-    ch2=final3[['amountV','feecumsum']]
-    ch3=final3[['ILnorm','PNLnorm','feecumsumnorm']]
-
-
-    #print(ch2)
-    #print(ch3)
-    
-    return final1,final2,final3, results
 
 
 
@@ -641,16 +456,12 @@ def date_by_days_ago(days, end_date=None):
 
 
 def chart1(dpd):
-        # 1 Chart
-    #print(dpd)
 
     data=dpd[['date','feeToken0','feeToken1','fgV','feeV','feeUSD','amountV','activeLiquidity','amountTR','close']]
     data=data.fillna(0)
     data['date'] = pd.to_datetime(data['date'], format='%m/%d/%Y')
-
     temp =  data.resample('D',on='date').sum()
     final1=temp[['feeToken0','feeToken1','feeV','fgV','feeUSD']].copy()
-
     temp2 = data.resample('D',on='date').mean()
     final1['activeLiquidity']=temp2['activeLiquidity'].copy()
 
@@ -663,9 +474,7 @@ def chart1(dpd):
     final1['unb%']=final1['fgV']/final1['amountTR']*100#*365
     final1['multiplier'] = final1['S1%'] / final1['unb%']
     final1['feeunb'] = final1['amountV']*final1['unb%']/100
-    final1.to_csv("chart1.csv",sep = ";")
     
-    #print(final1[['feeunb','feeV','feeUSD','amountV','activeLiquidity','S1%','unb%']])
     apr = final1['feeV'].sum()/final1['amountV'].iloc[0]*365/len(final1.index)*100  
     apr_base = final1['feeunb'].sum()/final1['amountV'].iloc[0]*365/len(final1.index)*100
     fees_usd = final1['feeUSD'].sum()
@@ -675,13 +484,10 @@ def chart1(dpd):
     #print('------------------------------------------------------------------')
     print("Simulated Position returned", final1['feeV'].sum()/final1['amountV'].iloc[0]*100,"in ",len(final1.index)," days, for an APR of ",final1['feeV'].sum()/final1['amountV'].iloc[0]*365/len(final1.index)*100)
     print("Base position returned", final1['feeunb'].sum()/final1['amountV'].iloc[0]*100,"in ",len(final1.index)," days, for an APR of ",final1['feeunb'].sum()/final1['amountV'].iloc[0]*365/len(final1.index)*100)
-    
     print ("Fees in token 0 and token 1",dpd['feeToken0'].sum(), dpd['feeToken1'].sum())
     print("Total Fees in USD", final1['feeUSD'].sum())
     print ('Your liquidity was active for:',final1['activeLiquidity'].mean())
     print('Final Net Liquidity Value of LP Investment (WBTC): ', final1['amountV'].iloc[-1])
-    #print("Total fees earned based on initial deposit: ", total_fees_earned)
-    #print('------------------------------------------------------------------')
     return final1, [fees_usd, apr, apr_base, final_net_liquidity, active_liquidity]
 
 
@@ -824,3 +630,217 @@ def generate_hodl(prices, initial_investment):
 # C = S * norm.cdf(d1) - K*math.exp(-r*T) * norm.cdf(d2)
 # P = K*math.exp(-r*T) * norm.cdf(-d2) - S * norm.cdf(-d1)
 #optionPrice("BTC", 100, 1, 'CALL', 42000, 2)
+
+
+
+'''Decommisioned Functions'''
+
+def get_options_straddle(self, start_date, end_date, close_ratio, num_contracts=1):
+        days_to_expiry = (pd.to_datetime(end_date) - pd.to_datetime(start_date)).days
+        overnight_apy = 0.0515
+        total_options = []
+        curr_eth_price = self.eth_price.loc[start_date]['Close'].iloc[0]
+        curr_btc_price = self.btc_price.loc[start_date]['Close'].iloc[0]
+        num_btc = 1
+        num_eth = int(num_btc / close_ratio)
+        
+        for coin in ['ETH', 'BTC']:
+            if coin == 'ETH':
+                curr_price = curr_eth_price
+            else:
+                curr_price = curr_btc_price
+            for type in ['CALL', 'PUT']:
+                strike_price = curr_price
+                option = {
+                    'coin': coin,
+                    'strike_price': strike_price,
+                    'Time to Expiry': days_to_expiry / 365,
+                    'staking_apy': overnight_apy,
+                    'Type' : type,
+                    'Close Price (USD)': curr_price
+                }
+                #print(option)
+                
+                if coin == 'ETH':
+                    total_options += [option] * num_eth
+                    
+                else:
+                    total_options += [option] * num_btc
+                #total_options.append(option)
+                
+        return total_options
+    
+    
+    
+    
+    
+    ## FUNCTION THAT DECIDES AMOUNT OF EACH TOKEN FROM INITIAL CAPITAL AND PRICE RANGE
+def setPosition(self, capital, pmin, pmax, r50 = None, dpd = None):
+        
+        ## GETTING DEFAULT DATAFRAME IF NOT PROVIDED
+        if dpd == None:
+            dpd = self.dpd
+
+        ## GETTING LATEST PRICE
+        p = dpd['close'].iloc[-1] 
+
+        ## SETTING PRICE RANGE FOR 50/50 PORTFOLIO 
+        if r50 != None:
+            pmin = p / r50
+            pmax = p * r50
+        
+        ## CALCULATING AMOUNT OF TOKEN 0/1
+        decimal0=dpd.iloc[0]['pool.token0.decimals']
+        decimal1=dpd.iloc[0]['pool.token1.decimals']
+        decimal=decimal1-decimal0
+        
+        SMIN=np.sqrt(pmin* 10 ** (decimal))   
+        SMAX=np.sqrt(pmax* 10 ** (decimal))  
+        
+        target = p
+        sqrt0 = np.sqrt(p* 10 ** (decimal))
+        dpd['price0'] = dpd['close']
+
+        if sqrt0>SMIN and sqrt0<SMAX:
+                deltaL = target / ((sqrt0 - SMIN)  + (((1 / sqrt0) - (1 / SMAX)) * (dpd['price0'].iloc[-1]* 10 ** (decimal))))
+                amount1 = deltaL * (sqrt0-SMIN)
+                amount0 = deltaL * ((1/sqrt0)-(1/SMAX))* 10 ** (decimal)
+        
+        elif sqrt0<SMIN:
+                deltaL = target / (((1 / SMIN) - (1 / SMAX)) * (dpd['price0'].iloc[-1]))
+                amount1 = 0
+                amount0 = deltaL * (( 1/SMIN ) - ( 1/SMAX ))
+
+        else:
+                deltaL = target / (SMAX-SMIN) 
+                amount1 = deltaL * (SMAX-SMIN)
+                amount0 = 0
+        
+        #id0,id1 = getTokenId(self.Address)
+        token0PriceUSD = self.get_current_btc_price(convert_unix_to_datetime(dpd['periodStartUnix'].iloc[-1]))
+        token1PriceUSD = self.get_current_eth_price(convert_unix_to_datetime(dpd['periodStartUnix'].iloc[-1]))
+
+        #print("Amounts Ratio: ",amount0,amount1)
+        multiplier = capital / (token0PriceUSD*amount0 + token1PriceUSD*amount1)
+
+        amount0 *= multiplier
+        amount1 *= multiplier
+        print("Amounts to Deposit: ",amount0,amount1)
+
+        ## GETTING LIQUIDITY BASED ON MY AMOUNT AND POOL AMOUNT
+        myliquidity = get_liquidity(dpd['price0'].iloc[-1],pmin,pmax,amount0,amount1,decimal0,decimal1)
+        totalLiquidity = get_liquidity(dpd['price0'].iloc[-1],pmin,pmax,dpd['pool.totalValueLockedToken0'][0],dpd['pool.totalValueLockedToken1'][0],decimal0,decimal1)
+        #poolLiquidity = dpd['pool.liquidity'].mean() # REMOVED COZ RANGE NOT SPECIFIED
+        self.myliquidity = myliquidity
+
+        print("myLiquidity: ",myliquidity)
+        print("totalLiquidity: ",totalLiquidity)
+        liquidityPerc = myliquidity/totalLiquidity
+        print("Liquidity%: ", liquidityPerc)
+        
+        return (amount0, amount1, liquidityPerc)
+        
+def checkTransactionGasFees(amountBefore0, amountBefore1, amountAfter0, amountAfter1):
+        if (amountAfter0 - amountBefore0) > 0 and (amountAfter1 - amountBefore1) > 0:
+             return getGasPrice()
+        elif (amountAfter0 - amountBefore0) < 0 and (amountAfter1 - amountBefore1) < 0:
+             return getGasPrice()
+        else:
+             return 2 * getGasPrice()
+         
+         
+    
+    
+def get_token_ratio(self, capital, pmin, pmax, dpd = None, start=True):
+    ## GETTING DEFAULT DATAFRAME IF NOT PROVIDED
+
+        ## GETTING LATEST PRICE
+        if start == True:
+            p = dpd['close'].iloc[-1]
+        else:
+            p = dpd['close'].iloc[0]
+
+        ## CALCULATING AMOUNT OF TOKEN 0/1
+        decimal0=dpd.iloc[-1]['pool.token0.decimals']
+        decimal1=dpd.iloc[-1]['pool.token1.decimals']
+        decimal=decimal1-decimal0
+        
+        SMIN=np.sqrt(pmin* 10 ** (decimal))   
+        SMAX=np.sqrt(pmax* 10 ** (decimal))  
+        
+        target = p
+        sqrt0 = np.sqrt(p* 10 ** (decimal))
+        dpd['price0'] = dpd['close']
+
+        if sqrt0>SMIN and sqrt0<SMAX:
+                deltaL = target / ((sqrt0 - SMIN)  + (((1 / sqrt0) - (1 / SMAX)) * (dpd['price0'].iloc[-1]* 10 ** (decimal))))
+                amount1 = deltaL * (sqrt0-SMIN)
+                amount0 = deltaL * ((1/sqrt0)-(1/SMAX))* 10 ** (decimal)
+        
+        elif sqrt0<SMIN:
+                deltaL = target / (((1 / SMIN) - (1 / SMAX)) * (dpd['price0'].iloc[-1]))
+                amount1 = 0
+                amount0 = deltaL * (( 1/SMIN ) - ( 1/SMAX ))
+        else:
+                deltaL = target / (SMAX-SMIN) 
+                amount1 = deltaL * (SMAX-SMIN)
+                amount0 = 0
+                
+        #id0,id1 = getTokenId(self.Address)
+        if start == True:
+            token0PriceUSD = self.get_current_btc_price(convert_unix_to_datetime(dpd['periodStartUnix'].iloc[-1]))
+            token1PriceUSD = self.get_current_eth_price(convert_unix_to_datetime(dpd['periodStartUnix'].iloc[-1]))
+        else:
+            token0PriceUSD = self.get_current_btc_price(convert_unix_to_datetime(dpd['periodStartUnix'].iloc[0]))
+            token1PriceUSD = self.get_current_eth_price(convert_unix_to_datetime(dpd['periodStartUnix'].iloc[0]))
+
+        #print("Amounts Ratio: ",amount0,amount1)
+        multiplier = capital / (token0PriceUSD*amount0 + token1PriceUSD*amount1)
+
+        amount0 *= multiplier
+        amount1 *= multiplier
+        #print("Amounts: ",amount0,amount1)
+        return [amount0, amount1]
+    
+    
+def backtest(self, mini, maxi, startdate, enddate=None, base=0, initial_investment=1000000, curr_price_eth = 2286.71):
+        
+        
+        startfrom, enddate = convert_to_unix(startdate), convert_to_unix(enddate)
+        #print(startfrom, enddate)
+        dpd = graphTwo(self.network, self.Address, startfrom, enddate)
+
+        ## CALCULATING LIQUIDITY PERCENTAGE
+        amt0, amt1, liquidityPerc = self.setPosition(initial_investment, mini, maxi)
+
+        ## FINAL FEE CALCULATION
+        dpd['myfee0'] = dpd['fee0token'] * liquidityPerc
+        dpd['myfee1'] = dpd['fee1token'] * liquidityPerc
+
+        '''
+        dpd['myfee0'] = dpd['fee0token'] * myliquidity * dpd['ActiveLiq'] / 100
+        dpd['myfee1'] = dpd['fee1token'] * myliquidity * dpd['ActiveLiq'] / 100
+        '''
+        
+        ## CALCULATING IL
+        p0 = dpd['close'].iloc[0]
+        dpd['k'] = dpd['close'].astype(float)/p0
+        
+        k0 = dpd.loc[dpd['k']>maxi/dpd['close'],'k'].astype(float)
+        dpd.loc[dpd['k']>maxi/dpd['close'],'IL'] = ((maxi/p0)**0.5 - k0*(1-(p0/maxi)**0.5) -1) / (k0*(1-(p0/maxi)**0.5) + 1 - (mini/p0)**0.5)
+
+        k1 = dpd.loc[(dpd['k']<=maxi/dpd['close']) & (dpd['k']>=mini/dpd['close']),'k'].astype(float)
+        dpd.loc[(dpd['k']<=maxi/dpd['close']) & (dpd['k']>=mini/dpd['close']),'IL'] = (2*(k1**0.5) - 1 - k1) / (1 + k1 - (mini/p0)**0.5 - k1*(p0/maxi))
+        
+        k2 = dpd.loc[dpd['k']<mini/dpd['close'],'k'].astype(float)
+        dpd.loc[dpd['k']<mini/dpd['close'],'IL'] = ((k2*((p0/mini)**0.5-1) -1 + (mini/p0)**0.5)) / (k2*(1-(p0/maxi)**0.5) + 1 - (mini/p0))
+
+        print(dpd)
+
+        #print(dpd)
+        dpd, myliquidity, initial_deposit = self.initial_transform(mini, maxi, startdate, enddate, dpd, base, initial_investment, curr_price_eth)
+    
+        #print(dpd)
+        final1, final2, final3, results = chart1(dpd,base,myliquidity, initial_amounts=initial_deposit)
+        
+        return final1, final2, final3, results

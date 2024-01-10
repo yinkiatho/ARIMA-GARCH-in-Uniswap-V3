@@ -102,7 +102,7 @@ df.index = pd.to_datetime(df.index)
 cmap = cm.get_cmap('viridis')
 
 plt.figure(figsize=(15, 6))
-plt.plot(df.index, df['Close (WBTC)'], label='Predicted Close', marker='o')
+plt.plot(df.index, df['Close (WBTC)'], label='Close (WBTC)', marker='o')
 plt.title('Boundaries of Pool Close with Confidence Interval')
 plt.xlabel('Date')
 plt.ylabel('Close Price')
