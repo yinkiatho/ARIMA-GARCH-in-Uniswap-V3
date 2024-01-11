@@ -4,6 +4,8 @@ Hedging Impermanent Loss and Optimizing Returns with ARIMA-GARCH and Options
 
 This repository contains code and research materials for exploring a novel strategy to minimize impermanent loss and maximize returns in Uniswap V3.
 
+- main simulation Jupyter Notebook is at src/main.ipynb
+
 ## Key Features
 ### Asset Selection:
 WBTC/ETH pair chosen for its high correlation and potential to reduce impermanent loss.
