@@ -55,7 +55,7 @@ with st.sidebar:
     initial_investment = st.slider("Initial Investment", 1000000, 2000000, step=1000)
     
     # Choose Prediction Window
-    windows = st.slider("Number of Windows", 1, 7, step=1, value=5)
+    windows = st.slider("Number of Windows", 1, 7, step=1, value=3)
     
     
 st.header("Project Description")
